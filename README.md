@@ -14,7 +14,11 @@ One other key thing to note is that the switchport VLAN ID is programmatically d
 
 These scripts are written in python 3 (3.6 to be exact) and I haven't done any checking for backwards compatibility.  They are designed to be ran off-box and not directly on the Arista switches.
 
-Install python dependencies by running 'pip install -r /path/to/requirements.txt'
+Install python dependencies by running...
+
+'''
+pip install -r /path/to/requirements.txt
+'''
 
 These scripts are fairly generalized so should be backwards and forwards compatible with various version of NSX, EOS and CVP.  But for the record, I used...
 
