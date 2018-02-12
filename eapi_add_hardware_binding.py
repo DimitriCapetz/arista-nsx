@@ -39,52 +39,70 @@ import sys
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Define a function for GET requests to NSX Manager and return the response body as dictionry.
-def nsxGet(uri):
+def nsx_get(uri):
+    ''' Make generic HTTP GET to NSX Manager
+        
+        Args:
+            uri (str): The uri to call
+        
+        Returns:
+            response (dict): The response body of the HTTP GET
+    '''
+    nsx_url = 'https://' + nsx_manager + '/api/2.0/vdn/' # All calls will be to this base URL
     try:
-        getResponse = requests.get(nsxURL + uri, auth=(nsxUsername, nsxPassword), verify=False, timeout=5)
-        if getResponse.status_code == 403:
+        get_response = requests.get(nsx_url + uri, auth=(nsx_username, nsx_password), verify=False, timeout=5)
+        if get_response.status_code == 403:
             print('Unable to login to NSX Manager. Verify username and password.')
             sys.exit()
-        if getResponse.status_code == 404:
+        if get_response.status_code == 404:
             print('URI not found. Verify NSX Manager IP. If NSX was recently upgraded, verify any API changes in release notes.')
             sys.exit()
         else:
-            getDict = xmltodict.parse(getResponse.content, dict_constructor=dict)
-            return getDict
+            get_dict = xmltodict.parse(get_response.content, dict_constructor=dict)
+            return get_dict
     except requests.ConnectionError:
         print('Failed to connect to NSX Manager. Verify reachability.')
         sys.exit()
 
-# Define a function for POST requests to NSX Manager and return message on success.
-def nsxPost(uri, bodyDict, XMLRoot):
+def nsx_post(uri, body_dict, xml_root):
+    ''' Make generic HTTP POST to NSX Manager
+        
+        Args:
+            uri (str): The uri to call
+            body_dict (dict): A dictionary containing the body of the request to be sent
+            xml_root (str): The custom XML Root need to place the body in the correct structure
+        
+        Returns:
+            response (str): The response of the HTTP POST
+    '''
+    nsx_url = 'https://' + nsx_manager + '/api/2.0/vdn/' # All calls will be to this base URL
     try:
-        postXML = dicttoxml(bodyDict, custom_root=XMLRoot, attr_type=False)
-        postResponse = requests.post(nsxURL + uri, auth=(nsxUsername, nsxPassword), headers=headers, data=postXML, verify=False, timeout=5)
-        return postResponse
+        post_xml = dicttoxml(body_dict, custom_root=xml_root, attr_type=False)
+        post_response = requests.post(nsx_url + uri, auth=(nsx_username, nsx_password), headers=headers, data=post_xml, verify=False, timeout=5)
+        return post_response
     except requests.ConnectionError:
         print('Failed to connect to NSX Manager. Verify reachability.')
         sys.exit()
 
 # Define a function to connection to the switches eAPI for configuration.
-def eapiConnect(switchIp):
-    switchConn = pyeapi.client.connect(transport='https', host=switchIp, username=switchUsername, password=switchPassword)
-    switchNode = pyeapi.client.Node(switchConn)
-    return switchNode
+def eapi_connect(switch_ip):
+    switch_conn = pyeapi.client.connect(transport='https', host=switch_ip, username=switch_username, password=switch_password)
+    switch_node = pyeapi.client.Node(switch_conn)
+    return switch_node
 
 # Set Variables for API Calls.
-nsxUsername = input('NSX Manager Username: ')
-nsxPassword = getpass.getpass(prompt='NSX Manager Password: ')
-switchUsername = input('Switch Username: ')
-switchPassword = getpass.getpass(prompt='Switch Password: ')
-tenantName = 'USAA'
-zoneName = 'zone1'
-dataCenter = 'mn011' # Accepts mn011, mn013 or tx777
+nsx_username = input('NSX Manager Username: ')
+nsx_password = getpass.getpass(prompt='NSX Manager Password: ')
+switch_username = input('Switch Username: ')
+switch_password = getpass.getpass(prompt='Switch Password: ')
+tenant_name = 'USAA'
+zone_name = 'zone1'
+data_center = 'mn011' # Accepts mn011, mn013 or tx777
 headers = {'Content-Type': 'application/xml'} # Headers required for HTTP POSTs
-lsName = 'vls' + dataCenter + tenantName + zoneName
+ls_name = 'vls' + data_center + tenant_name + zone_name
 
 # Set Variables for switchport configurations.  Ports must be spelled out fully
-switch01Ports = {
+switch01_ports = {
     'Ethernet17': {
         'description': 'Port Description',
         'mode': 'access',
@@ -96,7 +114,7 @@ switch01Ports = {
         'speed': '10gfull'
     }
 }
-switch02Ports = {
+switch02_ports = {
     'Ethernet16': {
         'description': 'Port Description',
         'mode': 'trunk',
@@ -104,52 +122,47 @@ switch02Ports = {
     },
 } # Leave empty if no ports on that switch need to be configured.  Would need to look like this {}
 
-
-if dataCenter == 'mn011':
-    nsxManager = '10.92.64.241'
+if data_center == 'mn011':
+    nsx_manager = '10.92.64.241'
     switches = ('Spline-1', 'Spline-2') # ('mlsmn011ofe01', 'mlsmn011ofe02')
-    switchIps = ('10.92.64.204', '10.92.64.205') # Remove this line later.  Not needed for prod.
-elif dataCenter == 'mn013':
-    nsxManager = '10.92.64.241'
+    switch_ips = ('10.92.64.204', '10.92.64.205') # Remove this line later.  Not needed for prod.
+elif data_center == 'mn013':
+    nsx_manager = '10.92.64.241'
     switches = ('mlsmn013ofe01', 'mlsmn013ofe02')
-elif dataCenter == 'tx777':
-    nsxManager = '10.92.64.241'
+elif data_center == 'tx777':
+    nsx_manager = '10.92.64.241'
     switches = ('mlstx777ofe01', 'mlstx777ofe02')
 else:
     print('Incorrect Data Center Selection.  Valid choices are mn011, mn013 or tx777')
     sys.exit()
 
-nsxURL = 'https://' + nsxManager + '/api/2.0/vdn/' # All calls will be to this base URL
-
 # GET Hardware Binding ID for CVX
-hwURI = 'hardwaregateways'
-hwDict = nsxGet(hwURI)
+hw_dict = nsx_get(h'hardwaregateways')
 # Parse out Hardware Binfing ID for later use.
-hwId = hwDict['list']['hardwareGateway']['objectId']
+hw_id = hw_dict['list']['hardwareGateway']['objectId']
 
 
 # GET the list of logical switches to parse out the ID of the tenant switch.
-lsURI = 'virtualwires'
-lsDict = nsxGet(lsURI)
+ls_dict = nsx_get('virtualwires')
 # Find objectId of tenant's logical switch by name
-for item in lsDict['virtualWires']['dataPage']['virtualWire']:
-    if item['name'] == lsName:
-        lsId = item['objectId']
-        lsVniId = item['vdnId']
-        vlanId = lsVniId[0] + lsVniId[2:]
+for item in ls_dict['virtualWires']['dataPage']['virtualWire']:
+    if item['name'] == ls_name:
+        ls_id = item['objectId']
+        ls_vni_id = item['vdnId']
+        vlan_id = ls_vni_id[0] + ls_vni_id[2:]
 
 # Check if switch01 has ports that require configuration and do them up.
-if bool(switch01Ports) != False:
-    switch01 = eapiConnect(switchIps[0])
+if bool(switch01_ports) != False:
+    switch01 = eapi_connect(switch_ips[0])
     # Add Error Handling to check for pre-existing port config, add vlan to trunk, etc.
-    for port, config in switch01Ports.items():
+    for port, config in switch01_ports.items():
         if config['mode'] == 'trunk':
             switch01.config(
                 [
                     'interface ' + port,
                     'description ' + config['description'],
                     'speed forced ' + config['speed'],
-                    'switchport trunk allowed vlan ' + vlanId,
+                    'switchport trunk allowed vlan ' + vlan_id,
                     'switchport mode trunk',
                     'no shutdown'
                 ]
@@ -161,7 +174,7 @@ if bool(switch01Ports) != False:
                     'interface ' + port,
                     'description ' + config['description'],
                     'speed forced ' + config['speed'],
-                    'switchport trunk native vlan ' + vlanId,
+                    'switchport trunk native vlan ' + vlan_id,
                     'switchport mode trunk',
                     'no shutdown'
                 ]
@@ -173,7 +186,7 @@ if bool(switch01Ports) != False:
                     'interface ' + port,
                     'description ' + config['description'],
                     'speed forced ' + config['speed'],
-                    'switchport access vlan ' + vlanId,
+                    'switchport access vlan ' + vlan_id,
                     'switchport mode access',
                     'no shutdown'
                 ]
@@ -184,17 +197,17 @@ if bool(switch01Ports) != False:
             sys.exit()
     switch01.enable('write')
 # Check if switch02 has ports that require configuration and do them up.
-if bool(switch02Ports) != False:
-    switch02 = eapiConnect(switchIps[0])
+if bool(switch02_ports) != False:
+    switch02 = eapi_connect(switch_ips[0])
     # Add Error Handling to check for pre-existing port config, add vlan to trunk, etc.
-    for port, config in switch02Ports.items():
+    for port, config in switch02_ports.items():
         if config['mode'] == 'trunk':
             switch02.config(
                 [
                     'interface ' + port,
                     'description ' + config['description'],
                     'speed forced ' + config['speed'],
-                    'switchport trunk allowed vlan ' + vlanId,
+                    'switchport trunk allowed vlan ' + vlan_id,
                     'switchport mode trunk',
                     'no shutdown'
                 ]
@@ -206,7 +219,7 @@ if bool(switch02Ports) != False:
                     'interface ' + port,
                     'description ' + config['description'],
                     'speed forced ' + config['speed'],
-                    'switchport trunk native vlan ' + vlanId,
+                    'switchport trunk native vlan ' + vlan_id,
                     'switchport mode trunk',
                     'no shutdown'
                 ]
@@ -218,7 +231,7 @@ if bool(switch02Ports) != False:
                     'interface ' + port,
                     'description ' + config['description'],
                     'speed forced ' + config['speed'],
-                    'switchport access vlan ' + vlanId,
+                    'switchport access vlan ' + vlan_id,
                     'switchport mode access',
                     'no shutdown'
                 ]
@@ -231,39 +244,39 @@ if bool(switch02Ports) != False:
 
 # POST to add Hardware Bindings to NSX Logical Switch.
 # So far as I can tell, these can only be done one switch per request and must be looped through.
-hwBindURI = 'virtualwires/' + lsId + '/hardwaregateways'
+hw_bind_uri = 'virtualwires/' + ls_id + '/hardwaregateways'
 # Loop to Generate Request Body from Dictionary for all switch bindings.
 # Check if switch01 has ports for binding, then process.
-if bool(switch01Ports) != False:
-    for port, config in switch01Ports.items():
+if bool(switch01_ports) != False:
+    for port, config in switch01_ports.items():
         if config['mode'] == 'access':
-            hwBindDict = {'hardwareGatewayId': hwId, 'vlan': '0', 'switchName': switches[0], 'portName': port}
-            hwBindResponse = nsxPost(hwBindURI, hwBindDict, 'hardwareGatewayBinding')
-            if hwBindResponse.status_code == 200:
+            hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': '0', 'switchName': switches[0], 'portName': port}
+            hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
+            if hw_bind_response.status_code == 200:
                 print('Hardware binding complete for ' + switches[0] + ' ' + port)
             else:
                 print('Error binding logical switch to ' + switches[0] + ' ' + port)
         else:
-            hwBindDict = {'hardwareGatewayId': hwId, 'vlan': vlanId, 'switchName': switches[0], 'portName': port}
-            hwBindResponse = nsxPost(hwBindURI, hwBindDict, 'hardwareGatewayBinding')
-            if hwBindResponse.status_code == 200:
+            hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': vlan_id, 'switchName': switches[0], 'portName': port}
+            hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
+            if hw_bind_response.status_code == 200:
                 print('Hardware binding complete for ' + switches[0] + ' ' + port)
             else:
                 print('Error binding logical switch to ' + switches[0] + ' ' + port)
 # Check if switch02 has ports for binding, then process.
-if bool(switch02Ports) != False:
-    for port, config in switch02Ports.items():
+if bool(switch02_ports) != False:
+    for port, config in switch02_ports.items():
         if config['mode'] == 'access':
-            hwBindDict = {'hardwareGatewayId': hwId, 'vlan': '0', 'switchName': switches[1], 'portName': port}
-            hwBindResponse = nsxPost(hwBindURI, hwBindDict, 'hardwareGatewayBinding')
-            if hwBindResponse.status_code == 200:
+            hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': '0', 'switchName': switches[1], 'portName': port}
+            hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
+            if hw_bind_response.status_code == 200:
                 print('Hardware binding complete for ' + switches[1] + ' ' + port)
             else:
                 print('Error binding logical switch to ' + switches[1] + ' ' + port)
         else:
-            hwBindDict = {'hardwareGatewayId': hwId, 'vlan': vlanId, 'switchName': switches[1], 'portName': port}
-            hwBindResponse = nsxPost(hwBindURI, hwBindDict, 'hardwareGatewayBinding')
-            if hwBindResponse.status_code == 200:
+            hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': vlan_id, 'switchName': switches[1], 'portName': port}
+            hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
+            if hw_bind_response.status_code == 200:
                 print('Hardware binding complete for ' + switches[1] + ' ' + port)
             else:
                 print('Error binding logical switch to ' + switches[1] + ' ' + port)
