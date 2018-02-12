@@ -15,12 +15,13 @@ Created by Dimitri Capetz - dcapetz@arista.com
 # Import requests for API Calls to NSX Manager
 # Import xmltodict and dicttoxml for working with XML
 # Import getpass for masked password prompt
+# Import json for working with json objects
 # Import sys for various error handling
-# Use PIP to install these if they aren't already present.
 import requests
 import xmltodict
 from dicttoxml import dicttoxml
 import getpass
+import json
 import sys
 
 #Disable Cert Warnings for Test Environment

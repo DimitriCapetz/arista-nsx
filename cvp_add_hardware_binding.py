@@ -22,15 +22,16 @@ Created by Dimitri Capetz - dcapetz@arista.com
 # Import requests for API Calls to NSX Manager
 # Import xmltodict and dicttoxml for working with XML
 # Import getpass for password prompt
+# Import json for working with json objects
 # Import CVP REST API Client for configuration of Arista Switches through CVP
 # Import re for parsing and sorting configs
 # Import time for waiting to ensure tasks complete
 # Import sys for various error handling
-# Use PIP to install these if they aren't already present
 import requests
 import xmltodict
 from dicttoxml import dicttoxml
 import getpass
+import json
 from cvprac.cvp_client import CvpClient
 from cvprac.cvp_client_errors import CvpApiError
 import re
