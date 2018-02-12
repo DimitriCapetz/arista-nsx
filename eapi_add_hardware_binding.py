@@ -239,7 +239,7 @@ for item in ls_dict['virtualWires']['dataPage']['virtualWire']:
     if item['name'] == ls_name:
         ls_id = item['objectId']
         ls_vni_id = item['vdnId']
-        vlan_id = ls_vni_id[0] + ls_vni_id[2:]
+        vlan_id = ls_vni_id[0] + ls_vni_id[-2:]
 
 # Check if switch01 has ports that require configuration and call function to configure
 if bool(switch01_ports) == True:

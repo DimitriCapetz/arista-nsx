@@ -249,7 +249,7 @@ for item in ls_dict['virtualWires']['dataPage']['virtualWire']:
     if item['name'] == ls_name:
         ls_id = item['objectId']
         ls_vni_id = item['vdnId']
-        vlan_id = ls_vni_id[0] + ls_vni_id[2:]
+        vlan_id = ls_vni_id[0] + ls_vni_id[-2:]
 
 # Connect to CVP for configlet push. Loging for the connection is setup to the same dir as the script
 cvp = CvpClient(syslog=True, filename='cvprac_log')

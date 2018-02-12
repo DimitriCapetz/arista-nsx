@@ -173,7 +173,7 @@ else:
 # GET the details of the new Logical Switch to pull out the VNI ID and map to a VLAN ID
 ls_config_dict = nsx_get('virtualwires/' + ls_id)
 ls_vni_id = ls_config_dict['virtualWire']['vdnId']
-vlan_id = ls_vni_id[0] + ls_vni_id[2:]
+vlan_id = ls_vni_id[0] + ls_vni_id[-2:]
 
 # Call function to add Hardware Bindings to new Logical Switch
 nsx_hardware_binding(switches[0], switch01_ports, vlan_id)

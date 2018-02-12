@@ -8,6 +8,8 @@ These scripts will evolve over time.  For now, they assume the user has already 
 - Configure additional switchports via Arista eAPI and perform the hardware bindings in NSX for those ports.
 - Configure additional switchports via Arista CloudVision Portal REST API and perform the hardware bindings in NSX for those ports.
 
+One other key thing to note is that the switchport VLAN ID is programmatically derived by taking the first, then last two digits of the auto-assigned VNI from NSX.  This is just an example so the vlan_id variable in each script can be set by any number of methods depending on your needs.
+
 # Version and Dependency Notes
 
 These scripts are written in python 3 (3.6 to be exact) and I haven't done any checking for backwards compatibility.  They are designed to be ran off-box and not directly on the Arista switches.  They also rely on the following modules that must be installed via pip.
