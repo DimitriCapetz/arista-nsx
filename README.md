@@ -28,5 +28,6 @@ These scripts are fairly generalized so should be backwards and forwards compati
 
 # Links for more information
 
-["Arista - NSX Integration Overview"](https://www.arista.com/en/solutions/arista-cloudvision-vmware-nsx)
-["Arista CloudVision Overview"](https://www.arista.com/en/products/eos/eos-cloudvision)
+[Arista - NSX Integration Overview](https://www.arista.com/en/solutions/arista-cloudvision-vmware-nsx)
+
+[Arista CloudVision Overview](https://www.arista.com/en/products/eos/eos-cloudvision)
