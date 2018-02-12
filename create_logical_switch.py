@@ -112,25 +112,25 @@ zone_name = 'zone2'
 data_center = 'mn011' # Accepts mn011, mn013 or tx777 as an example
 ls_name = 'vls' + data_center + tenant_name + zone_name
 switch01_ports = {
-    'Port-channel1500': {
+    'Port-Channel1500': {
         'description': 'Pre-Configured Interface to Hardware Device',
         'mode': 'trunk',
         'speed': '10gfull'
     },
-    'Ethernet14': {
-        'description': 'Pre-Configured Interface to Hardware Device'',
+    'Ethernet25': {
+        'description': 'Pre-Configured Interface to Hardware Device',
         'mode': 'access',
         'speed': '10gfull'
     }
 }
 switch02_ports = {
-    'Port-channel1500': {
-        'description': 'Pre-Configured Interface to Hardware Device'',
+    'Port-Channel1500': {
+        'description': 'Pre-Configured Interface to Hardware Device',
         'mode': 'trunk',
         'speed': '1000full'
     },
-    'Ethernet14': {
-        'description': 'Pre-Configured Interface to Hardware Device'',
+    'Ethernet25': {
+        'description': 'Pre-Configured Interface to Hardware Device',
         'mode': 'trunk native',
         'speed': '10gfull'
     }
@@ -164,9 +164,9 @@ hw_id = hw_dict['list']['hardwareGateway']['objectId']
 # Generate Dictionary for Request Body and feed into POST Function
 ls_dict = {'name': ls_name, 'tenantId': tenant_name}
 ls_response = nsx_post('scopes/' + tz_scope_id + '/virtualwires', ls_dict, 'virtualWireCreateSpec')
-ls_id = ls_response.content.decode('utf-8')
 if ls_response.status_code == 201:
     print('Logical Switch ' + ls_name + ' created.')
+    ls_id = ls_response.content.decode('utf-8')
 else:
     print('Error Creating Logical Switch.')
 

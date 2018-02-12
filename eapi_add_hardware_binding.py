@@ -1,25 +1,22 @@
 '''
 This is a quick and dirty script (again) that will configure any bare-metal ports
-on the OFE switches and map those as hardware bindings in NSX.
+on the Arista switches and map those as hardware bindings in NSX.
 
 Per this script, it will be important to configure the VTEP switchport FIRST
 and from there hop into NSX and map the ports to logical switches.  Currently,
-it is written to only configure bindings for one tenant's logical switch at a
+it is written to only configure bindings for one logical switch at a
 time.
 
-This script assumes DNS resolution is in place for all switches.
-
-As of now, this script is setup to use the eAPI of each VTEP switch directly.
-Once we have CVP formatted correctly and configlets implemented, we can transition
-this script to instead use the CVP API so as to avoid any reconciliation issues.
+This script assumes DNS resolution is in place for all switches. It is setup to use
+the eAPI of each VTEP switch directly.  If you have CVP implemented in your
+environment, I recommend using the CVP API based script so as to avoid any
+reconciliation issues.
 
 Please note that all SSL verification is disabled.  If you have signed certs
 in place for NSX Manager, you can remove the urllib3 section and verify option
 in the requests.
 
 Created by Dimitri Capetz - dcapetz@arista.com
-
-1/30 - Need to add error handling
 '''
 
 # Import requests for API Calls to NSX Manager
@@ -94,7 +91,7 @@ def nsx_hardware_binding(switch, switch_ports, vlan):
         vlan (str): The vlan ID to bind the logical switch to
     '''
     # Loop to Generate Request Body from Dictionary for all switch bindings and POST
-    # So far as I can tell, these can only be done one switch per request and must be looped through.
+    # So far as I can tell, these can only be done one switch per request and must be looped through
     hw_bind_uri = 'virtualwires/' + ls_id + '/hardwaregateways'
     for port, config in switch_ports.items():
         if config['mode'] == 'access':
@@ -112,13 +109,72 @@ def nsx_hardware_binding(switch, switch_ports, vlan):
             else:
                 print('Error binding NSX logical switch to ' + switch + ' ' + port)
 
-# Define a function to connection to the switches eAPI for configuration.
 def eapi_connect(switch_ip):
+    ''' Connect to eAPI interface of Arista Switch
+    
+    Args:
+        switch (str): The IP address or FQDN of the Arista switch
+    
+    Returns:
+        switch_node (class): The connected node of the function call that can be used for show or config commands.
+    '''
     switch_conn = pyeapi.client.connect(transport='https', host=switch_ip, username=switch_username, password=switch_password)
     switch_node = pyeapi.client.Node(switch_conn)
     return switch_node
 
-# Set Variables for Login.
+def switchport_config_update(switch, switch_ports):
+    ''' Generate switchport configurations and push to switches via
+        Arista eAPI
+    
+    Args:
+        switch (str): The IP address or FQDN of the Arista switch
+        switch_ports (dict): A dictionary containing configuration attributes
+    '''
+    switch_node = eapi_connect(switch)
+    # Add Error Handling to check for pre-existing port config, add vlan to trunk, etc.
+    for port, config in switch_ports.items():
+        if config['mode'] == 'trunk':
+            switch_node.config(
+                [
+                    'interface ' + port,
+                    'description ' + config['description'],
+                    'speed forced ' + config['speed'],
+                    'switchport trunk allowed vlan ' + vlan_id,
+                    'switchport mode trunk',
+                    'no shutdown'
+                ]
+            )
+            print(switch + ' ' + port + ' configured')
+        elif config['mode'] == 'trunk native':
+            switch_node.config(
+                [
+                    'interface ' + port,
+                    'description ' + config['description'],
+                    'speed forced ' + config['speed'],
+                    'switchport trunk native vlan ' + vlan_id,
+                    'switchport mode trunk',
+                    'no shutdown'
+                ]
+            )
+            print(switch + ' ' + port + ' configured')
+        elif config['mode'] == 'access':
+            switch_node.config(
+                [
+                    'interface ' + port,
+                    'description ' + config['description'],
+                    'speed forced ' + config['speed'],
+                    'switchport access vlan ' + vlan_id,
+                    'switchport mode access',
+                    'no shutdown'
+                ]
+            )
+            print(switch + ' ' + port + ' configured')
+        else:
+            print('Incorrect Port Mode Selection for ' + switch + ' ' + port + '.  Please verify port configurations.  Valid options are trunk, trunk native and access.')
+            sys.exit()
+    switch_node.enable('write')
+
+# Set Variables for Login
 nsx_username = input('NSX Manager Username: ')
 nsx_password = getpass.getpass(prompt='NSX Manager Password: ')
 switch_username = input('Switch Username: ')
@@ -132,24 +188,24 @@ zone_name = 'zone1'
 data_center = 'mn011' # Accepts mn011, mn013 or tx777 as an example
 ls_name = 'vls' + data_center + tenant_name + zone_name
 switch01_ports = {
-    'Ethernet33': {
+    'Ethernet16': {
         'description': 'Port Description',
         'mode': 'access',
         'speed': '1000full'
     },
-    'Ethernet34': {
+    'Ethernet17': {
         'description': 'Port Description',
         'mode': 'trunk native',
         'speed': '10gfull'
     }
 }
 switch02_ports = {
-    'Ethernet33': {
+    'Ethernet16': {
         'description': 'Port Description',
         'mode': 'access',
         'speed': '1000full'
     },
-    'Ethernet34': {
+    'Ethernet17': {
         'description': 'Port Description',
         'mode': 'trunk native',
         'speed': '10gfull'
@@ -160,7 +216,7 @@ switch02_ports = {
 if data_center == 'mn011':
     nsx_manager = '10.92.64.241' # Update with prod NSX Manager IPs or FQDNs
     switches = ('Spline-1', 'Spline-2') # ('mlsmn011ofe01', 'mlsmn011ofe02')
-    switch_ips = ('10.92.64.204', '10.92.64.205') # Remove this line later.  Not needed for prod.
+    switch_ips = ('10.92.64.204', '10.92.64.205') # Remove this line later.  Not needed for prod if switches in DNS
 elif data_center == 'mn013':
     nsx_manager = '10.92.64.241'
     switches = ('mlsmn013ofe01', 'mlsmn013ofe02')
@@ -172,12 +228,11 @@ else:
     sys.exit()
 
 # GET Hardware Binding ID for CVX
-hw_dict = nsx_get(h'hardwaregateways')
-# Parse out Hardware Binfing ID for later use.
+hw_dict = nsx_get('hardwaregateways')
+# Parse out Hardware Binfing ID for later use
 hw_id = hw_dict['list']['hardwareGateway']['objectId']
 
-
-# GET the list of logical switches to parse out the ID of the tenant switch.
+# GET the list of logical switches to parse out the ID and VNI of the tenant switch
 ls_dict = nsx_get('virtualwires')
 # Find objectId of tenant's logical switch by name
 for item in ls_dict['virtualWires']['dataPage']['virtualWire']:
@@ -186,132 +241,16 @@ for item in ls_dict['virtualWires']['dataPage']['virtualWire']:
         ls_vni_id = item['vdnId']
         vlan_id = ls_vni_id[0] + ls_vni_id[2:]
 
-# Check if switch01 has ports that require configuration and do them up.
-if bool(switch01_ports) != False:
-    switch01 = eapi_connect(switch_ips[0])
-    # Add Error Handling to check for pre-existing port config, add vlan to trunk, etc.
-    for port, config in switch01_ports.items():
-        if config['mode'] == 'trunk':
-            switch01.config(
-                [
-                    'interface ' + port,
-                    'description ' + config['description'],
-                    'speed forced ' + config['speed'],
-                    'switchport trunk allowed vlan ' + vlan_id,
-                    'switchport mode trunk',
-                    'no shutdown'
-                ]
-            )
-            print(switches[0] + ' ' + port + ' configured')
-        elif config['mode'] == 'trunk native':
-            switch01.config(
-                [
-                    'interface ' + port,
-                    'description ' + config['description'],
-                    'speed forced ' + config['speed'],
-                    'switchport trunk native vlan ' + vlan_id,
-                    'switchport mode trunk',
-                    'no shutdown'
-                ]
-            )
-            print(switches[0] + ' ' + port + ' configured')
-        elif config['mode'] == 'access':
-            switch01.config(
-                [
-                    'interface ' + port,
-                    'description ' + config['description'],
-                    'speed forced ' + config['speed'],
-                    'switchport access vlan ' + vlan_id,
-                    'switchport mode access',
-                    'no shutdown'
-                ]
-            )
-            print(switches[0] + ' ' + port + ' configured')
-        else:
-            print('Incorrect Port Mode Selection.  Please verify port configurations.  Valid options are trunk, trunk native and access.')
-            sys.exit()
-    switch01.enable('write')
-# Check if switch02 has ports that require configuration and do them up.
-if bool(switch02_ports) != False:
-    switch02 = eapi_connect(switch_ips[0])
-    # Add Error Handling to check for pre-existing port config, add vlan to trunk, etc.
-    for port, config in switch02_ports.items():
-        if config['mode'] == 'trunk':
-            switch02.config(
-                [
-                    'interface ' + port,
-                    'description ' + config['description'],
-                    'speed forced ' + config['speed'],
-                    'switchport trunk allowed vlan ' + vlan_id,
-                    'switchport mode trunk',
-                    'no shutdown'
-                ]
-            )
-            print(switches[1] + ' ' + port + ' configured')
-        elif config['mode'] == 'trunk native':
-            switch02.config(
-                [
-                    'interface ' + port,
-                    'description ' + config['description'],
-                    'speed forced ' + config['speed'],
-                    'switchport trunk native vlan ' + vlan_id,
-                    'switchport mode trunk',
-                    'no shutdown'
-                ]
-            )
-            print(switches[1] + ' ' + port + ' configured')
-        elif config['mode'] == 'access':
-            switch02.config(
-                [
-                    'interface ' + port,
-                    'description ' + config['description'],
-                    'speed forced ' + config['speed'],
-                    'switchport access vlan ' + vlan_id,
-                    'switchport mode access',
-                    'no shutdown'
-                ]
-            )
-            print(switches[1] + ' ' + port + ' configured')
-        else:
-            print('Incorrect Port Mode Selection.  Please verify port configurations.  Valid options are trunk, trunk native and access.')
-            sys.exit()
-    switch02.enable('write')
+# Check if switch01 has ports that require configuration and call function to configure
+if bool(switch01_ports) == True:
+    switchport_config_update(switch_ips[0], switch01_ports) # Change back to switches[0] in prod for use with DNS.
+# Check if switch02 has ports that require configuration and call function to configure
+if bool(switch02_ports) == True:
+    switchport_config_update(switch_ips[1], switch02_ports) # Change back to switches[1] in prod for use with DNS.
 
-# POST to add Hardware Bindings to NSX Logical Switch.
-# So far as I can tell, these can only be done one switch per request and must be looped through.
-hw_bind_uri = 'virtualwires/' + ls_id + '/hardwaregateways'
-# Loop to Generate Request Body from Dictionary for all switch bindings.
-# Check if switch01 has ports for binding, then process.
-if bool(switch01_ports) != False:
-    for port, config in switch01_ports.items():
-        if config['mode'] == 'access':
-            hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': '0', 'switchName': switches[0], 'portName': port}
-            hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
-            if hw_bind_response.status_code == 200:
-                print('Hardware binding complete for ' + switches[0] + ' ' + port)
-            else:
-                print('Error binding logical switch to ' + switches[0] + ' ' + port)
-        else:
-            hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': vlan_id, 'switchName': switches[0], 'portName': port}
-            hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
-            if hw_bind_response.status_code == 200:
-                print('Hardware binding complete for ' + switches[0] + ' ' + port)
-            else:
-                print('Error binding logical switch to ' + switches[0] + ' ' + port)
-# Check if switch02 has ports for binding, then process.
-if bool(switch02_ports) != False:
-    for port, config in switch02_ports.items():
-        if config['mode'] == 'access':
-            hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': '0', 'switchName': switches[1], 'portName': port}
-            hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
-            if hw_bind_response.status_code == 200:
-                print('Hardware binding complete for ' + switches[1] + ' ' + port)
-            else:
-                print('Error binding logical switch to ' + switches[1] + ' ' + port)
-        else:
-            hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': vlan_id, 'switchName': switches[1], 'portName': port}
-            hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
-            if hw_bind_response.status_code == 200:
-                print('Hardware binding complete for ' + switches[1] + ' ' + port)
-            else:
-                print('Error binding logical switch to ' + switches[1] + ' ' + port)
+# Check if switch01 has ports for binding, then call function to bind ports
+if bool(switch01_ports) == True:
+    nsx_hardware_binding(switches[0], switch01_ports, vlan_id)
+# Check if switch02 has ports for binding, then call function to bind ports
+if bool(switch02_ports) == True:
+    nsx_hardware_binding(switches[1], switch02_ports, vlan_id)

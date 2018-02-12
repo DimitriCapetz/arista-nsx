@@ -4,21 +4,19 @@ on the OFE switches and map those as hardware bindings in NSX.
 
 Per this script, it will be important to configure the VTEP switchport FIRST
 and from there hop into NSX and map the ports to logical switches.  Currently,
-it is written to only configure bindings for one tenant's logical switch at a
+it is written to only configure bindings for one logical switch at a
 time.
 
 This script will leverage the CVP REST API to push the switchport configuration
 into a pre-existing configlet.  I have assumed the configlets for the device
-specific ports will be called <switchname> Switchports but this can be changed to
-whatever naming stand folks decide is best.
+specific ports will be called '<switchname> Switchports' but this can be changed to
+whatever naming standard you like.
 
 Please note that all SSL verification is disabled.  If you have signed certs
 in place for NSX Manager, you can remove the urllib3 section and verify option
 in the requests.
 
 Created by Dimitri Capetz - dcapetz@arista.com
-
-1/30 - Need to add error handling
 '''
 
 # Import requests for API Calls to NSX Manager
@@ -244,8 +242,7 @@ hw_dict = nsx_get('hardwaregateways')
 # Parse out Hardware Binfing ID for later use
 hw_id = hw_dict['list']['hardwareGateway']['objectId']
 
-
-# GET the list of logical switches to parse out the ID of the tenant switch
+# GET the list of logical switches to parse out the ID and VNI of the tenant switch
 ls_dict = nsx_get('virtualwires')
 # Find objectId of tenant's logical switch by name
 for item in ls_dict['virtualWires']['dataPage']['virtualWire']:
