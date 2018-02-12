@@ -12,15 +12,9 @@ One other key thing to note is that the switchport VLAN ID is programmatically d
 
 # Version and Dependency Notes
 
-These scripts are written in python 3 (3.6 to be exact) and I haven't done any checking for backwards compatibility.  They are designed to be ran off-box and not directly on the Arista switches.  They also rely on the following modules that must be installed via pip.
+These scripts are written in python 3 (3.6 to be exact) and I haven't done any checking for backwards compatibility.  They are designed to be ran off-box and not directly on the Arista switches.
 
-- requests - Used for making API requests to NSX.
-- xmltodict - Used for working with NSX API returns, which come in xml.
-- dicttoxml - Used for the reverse.  NSX API expects xml.
-- pyeapi - Used for working with Arista eAPI.
-- cvprac - Used for working with Arista CVP REST API.
-
-All other modules should be part of the base python installation.
+Install python dependencies by running 'pip install -r /path/to/requirements.txt'
 
 These scripts are fairly generalized so should be backwards and forwards compatible with various version of NSX, EOS and CVP.  But for the record, I used...
 
