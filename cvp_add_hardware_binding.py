@@ -80,6 +80,7 @@ def nsx_post(uri, body_dict, xml_root):
             response (str): The response of the HTTP POST
     '''
     nsx_url = 'https://' + nsx_manager + '/api/2.0/vdn/' # All calls will be to this base URL
+    headers = {'Content-Type': 'application/xml'} # Headers required for HTTP POSTs
     try:
         post_xml = dicttoxml(body_dict, custom_root=xml_root, attr_type=False)
         post_response = requests.post(nsx_url + uri, auth=(nsx_username, nsx_password), headers=headers, data=post_xml, verify=False, timeout=5)
@@ -194,8 +195,7 @@ cvp_password = getpass.getpass(prompt='CVP Password: ')
 # Should this be an external JSON file that is loaded?
 tenant_name = 'USAA'
 zone_name = 'zone1'
-data_center = 'mn011' # Accepts mn011, mn013 or tx777
-headers = {'Content-Type': 'application/xml'} # Headers required for HTTP POSTs
+data_center = 'mn011' # Accepts mn011, mn013 or tx777 as an example
 ls_name = 'vls' + data_center + tenant_name + zone_name
 switch01_ports = {
     'Ethernet33': {
@@ -224,7 +224,7 @@ switch02_ports = {
 
 # Set Data Center specific variables
 if data_center == 'mn011':
-    nsx_manager = '10.92.64.241'
+    nsx_manager = '10.92.64.241' # Update with prod NSX Manager IPs or FQDNs
     switches = ('Spline-1', 'Spline-2') # ('mlsmn011ofe01', 'mlsmn011ofe02')
     cvp_ips = ['10.92.64.245'] # ['10.92.64.205', '10.92.64.205', '10.92.64.205']
 elif data_center == 'mn013':

@@ -64,6 +64,7 @@ def nsx_post(uri, body_dict, xml_root):
             response (str): The response of the HTTP POST
     '''
     nsx_url = 'https://' + nsx_manager + '/api/2.0/vdn/' # All calls will be to this base URL
+    headers = {'Content-Type': 'application/xml'} # Headers required for HTTP POSTs
     try:
         post_xml = dicttoxml(body_dict, custom_root=xml_root, attr_type=False)
         post_response = requests.post(nsx_url + uri, auth=(nsx_username, nsx_password), headers=headers, data=post_xml, verify=False, timeout=5)
@@ -72,15 +73,70 @@ def nsx_post(uri, body_dict, xml_root):
         print('Failed to connect to NSX Manager. Verify reachability.')
         sys.exit()
 
-# Set Variables for API Calls.
+def nsx_hardware_binding(switch, switch_ports, vlan):
+    ''' Generate body and POST to NSX Manager if ports are present
+    
+    Args:
+        switch (str): The name of the switch to perform bindings for
+        switch_ports (dict): A dictionary containing configuration attributes
+        vlan (str): The vlan ID to bind the logical switch to
+    '''
+    # Loop to Generate Request Body from Dictionary for all switch bindings and POST
+    # So far as I can tell, these can only be done one switch per request and must be looped through.
+    hw_bind_uri = 'virtualwires/' + ls_id + '/hardwaregateways'
+    for port, config in switch_ports.items():
+        if config['mode'] == 'access':
+            hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': '0', 'switchName': switch, 'portName': port}
+            hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
+            if hw_bind_response.status_code == 200:
+                print('NSX hardware binding complete for ' + switch + ' ' + port)
+            else:
+                print('Error binding NSX logical switch to ' + switch + ' ' + port)
+        else:
+            hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': vlan, 'switchName': switch, 'portName': port}
+            hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
+            if hw_bind_response.status_code == 200:
+                print('NSX hardware binding complete for ' + switch + ' ' + port)
+            else:
+                print('Error binding NSX logical switch to ' + switch + ' ' + port)
+
+# Set Variables for Login.
 nsx_username = input('NSX Manager Username: ')
 nsx_password = getpass.getpass(prompt='NSX Manager Password: ')
-tenant_name = 'USAA'
-zone_name = 'zone1'
-data_center = 'mn011' # Accepts mn011, mn013 or tx777
-headers = {'Content-Type': 'application/xml'} # Headers required for HTTP POSTs
-ls_name = 'vls' + data_center + tenant_name + zone_name
 
+# Set Variables for switchport configurations and API Calls.  Ports must be spelled out fully
+# Leave dict empty if no ports on that switch need to be configured.  Would need to look like this {}
+# Should this be an external JSON file that is loaded?
+tenant_name = 'USAA'
+zone_name = 'zone2'
+data_center = 'mn011' # Accepts mn011, mn013 or tx777 as an example
+ls_name = 'vls' + data_center + tenant_name + zone_name
+switch01_ports = {
+    'Port-channel1500': {
+        'description': 'Pre-Configured Interface to Hardware Device',
+        'mode': 'trunk',
+        'speed': '10gfull'
+    },
+    'Ethernet14': {
+        'description': 'Pre-Configured Interface to Hardware Device'',
+        'mode': 'access',
+        'speed': '10gfull'
+    }
+}
+switch02_ports = {
+    'Port-channel1500': {
+        'description': 'Pre-Configured Interface to Hardware Device'',
+        'mode': 'trunk',
+        'speed': '1000full'
+    },
+    'Ethernet14': {
+        'description': 'Pre-Configured Interface to Hardware Device'',
+        'mode': 'trunk native',
+        'speed': '10gfull'
+    }
+}
+
+# Set Data Center specific variables
 if data_center == 'mn011':
     nsx_manager = '10.92.64.241' # Update with prod NSX Manager IPs or FQDNs
     switches = ('Spline-1', 'Spline-2') # ('mlsmn011ofe01', 'mlsmn011ofe02')
@@ -119,22 +175,6 @@ ls_config_dict = nsx_get('virtualwires/' + ls_id)
 ls_vni_id = ls_config_dict['virtualWire']['vdnId']
 vlan_id = ls_vni_id[0] + ls_vni_id[2:]
 
-# POST to add Hardware Bindings to new Logical Switch
-# So far as I can tell, these can only be done one switch per request
-hw_bind_uri = 'virtualwires/' + ls_id + '/hardwaregateways'
-# Loop to Generate Request Body from Dictionary for all switch bindings (Firewall and F5 ports)
-appl_num = 0
-for switch in switches:
-    appl_num = appl_num + 1
-    fw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': vlan_id, 'switchName': switch, 'portName': 'Ethernet10'} # Replace with Po1500
-    fw_bind_response = nsx_post(hw_bind_uri, fw_bind_dict, 'hardwareGatewayBinding')
-    if fw_bind_response.status_code == 200:
-        print('Hardware binding complete for firewall uplink #' + str(appl_num))
-    else:
-        print('Error binding logical switch to hardware VTEP for firewall uplink #' + str(appl_num))
-    f5_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': vlan_id, 'switchName': switch, 'portName': 'Ethernet20'} # Replace with F5 Port
-    f5_bind_response = nsx_post(hw_bind_uri, f5_bind_dict, 'hardwareGatewayBinding')
-    if f5_bind_response.status_code == 200:
-        print('Hardware binding complete for F5 uplink #' + str(appl_num))
-    else:
-        print('Error binding logical switch to hardware VTEP for F5 uplink #' + str(appl_num))
+# Call function to add Hardware Bindings to new Logical Switch
+nsx_hardware_binding(switches[0], switch01_ports, vlan_id)
+nsx_hardware_binding(switches[1], switch02_ports, vlan_id)

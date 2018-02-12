@@ -76,6 +76,7 @@ def nsx_post(uri, body_dict, xml_root):
             response (str): The response of the HTTP POST
     '''
     nsx_url = 'https://' + nsx_manager + '/api/2.0/vdn/' # All calls will be to this base URL
+    headers = {'Content-Type': 'application/xml'} # Headers required for HTTP POSTs
     try:
         post_xml = dicttoxml(body_dict, custom_root=xml_root, attr_type=False)
         post_response = requests.post(nsx_url + uri, auth=(nsx_username, nsx_password), headers=headers, data=post_xml, verify=False, timeout=5)
@@ -84,46 +85,80 @@ def nsx_post(uri, body_dict, xml_root):
         print('Failed to connect to NSX Manager. Verify reachability.')
         sys.exit()
 
+def nsx_hardware_binding(switch, switch_ports, vlan):
+    ''' Generate body and POST to NSX Manager if ports are present
+    
+    Args:
+        switch (str): The name of the switch to perform bindings for
+        switch_ports (dict): A dictionary containing configuration attributes
+        vlan (str): The vlan ID to bind the logical switch to
+    '''
+    # Loop to Generate Request Body from Dictionary for all switch bindings and POST
+    # So far as I can tell, these can only be done one switch per request and must be looped through.
+    hw_bind_uri = 'virtualwires/' + ls_id + '/hardwaregateways'
+    for port, config in switch_ports.items():
+        if config['mode'] == 'access':
+            hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': '0', 'switchName': switch, 'portName': port}
+            hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
+            if hw_bind_response.status_code == 200:
+                print('NSX hardware binding complete for ' + switch + ' ' + port)
+            else:
+                print('Error binding NSX logical switch to ' + switch + ' ' + port)
+        else:
+            hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': vlan, 'switchName': switch, 'portName': port}
+            hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
+            if hw_bind_response.status_code == 200:
+                print('NSX hardware binding complete for ' + switch + ' ' + port)
+            else:
+                print('Error binding NSX logical switch to ' + switch + ' ' + port)
+
 # Define a function to connection to the switches eAPI for configuration.
 def eapi_connect(switch_ip):
     switch_conn = pyeapi.client.connect(transport='https', host=switch_ip, username=switch_username, password=switch_password)
     switch_node = pyeapi.client.Node(switch_conn)
     return switch_node
 
-# Set Variables for API Calls.
+# Set Variables for Login.
 nsx_username = input('NSX Manager Username: ')
 nsx_password = getpass.getpass(prompt='NSX Manager Password: ')
 switch_username = input('Switch Username: ')
 switch_password = getpass.getpass(prompt='Switch Password: ')
+
+# Set Variables for switchport configurations and API Calls.  Ports must be spelled out fully
+# Leave dict empty if no ports on that switch need to be configured.  Would need to look like this {}
+# Should this be an external JSON file that is loaded?
 tenant_name = 'USAA'
 zone_name = 'zone1'
-data_center = 'mn011' # Accepts mn011, mn013 or tx777
-headers = {'Content-Type': 'application/xml'} # Headers required for HTTP POSTs
+data_center = 'mn011' # Accepts mn011, mn013 or tx777 as an example
 ls_name = 'vls' + data_center + tenant_name + zone_name
-
-# Set Variables for switchport configurations.  Ports must be spelled out fully
 switch01_ports = {
-    'Ethernet17': {
+    'Ethernet33': {
         'description': 'Port Description',
         'mode': 'access',
         'speed': '1000full'
     },
-    'Ethernet18': {
+    'Ethernet34': {
         'description': 'Port Description',
         'mode': 'trunk native',
         'speed': '10gfull'
     }
 }
 switch02_ports = {
-    'Ethernet16': {
+    'Ethernet33': {
         'description': 'Port Description',
-        'mode': 'trunk',
-        'speed': '10gfull'
+        'mode': 'access',
+        'speed': '1000full'
     },
-} # Leave empty if no ports on that switch need to be configured.  Would need to look like this {}
+    'Ethernet34': {
+        'description': 'Port Description',
+        'mode': 'trunk native',
+        'speed': '10gfull'
+    }
+}
 
+# Set Data Center specific variables
 if data_center == 'mn011':
-    nsx_manager = '10.92.64.241'
+    nsx_manager = '10.92.64.241' # Update with prod NSX Manager IPs or FQDNs
     switches = ('Spline-1', 'Spline-2') # ('mlsmn011ofe01', 'mlsmn011ofe02')
     switch_ips = ('10.92.64.204', '10.92.64.205') # Remove this line later.  Not needed for prod.
 elif data_center == 'mn013':
