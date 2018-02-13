@@ -216,12 +216,11 @@ for item in ls_dict['virtualWires']['dataPage']['virtualWire']:
         vlan_id = ls_vni_id[0] + ls_vni_id[-2:]
 
 # Check if switch01 has ports that require configuration and call function to configure
-switch_ips = ['10.92.64.204', '10.92.64.205'] # Needed because I don't have DNS resolution.  Remove this line in prod.
 if bool(switch01_ports) == True:
-    switchport_config_update(switch_ips[0], switch01_ports) # Change back to switches[0] in prod for use with DNS.
+    switchport_config_update(switches[0], switch01_ports)
 # Check if switch02 has ports that require configuration and call function to configure
 if bool(switch02_ports) == True:
-    switchport_config_update(switch_ips[1], switch02_ports) # Change back to switches[1] in prod for use with DNS.
+    switchport_config_update(switches[1], switch02_ports)
 
 # Check if switch01 has ports for binding, then call function to bind ports
 if bool(switch01_ports) == True:

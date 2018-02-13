@@ -36,6 +36,8 @@ These scripts are fairly generalized so should be backwards and forwards compati
 
 The scripts should work using DNS names or IPs in the input JSON file EXCEPT for the eapi script.  This one requires the use of DNS for the switches today.  If that is an issue, it can be worked around in a number of ways.  Contact me if you help in that area.
 
+It should also be noted that I have disabled SSL certificate checking in the scripts.  If you have signed certificates in your environment, you can remove the sections detailed in the script comments to re-enable it.
+
 # Links for more information
 
 [Arista - NSX Integration Overview](https://www.arista.com/en/solutions/arista-cloudvision-vmware-nsx)
