@@ -1,70 +1,40 @@
 {
    "tenant_name":"my_tenant",
    "zone_name":"zone1",
-   "data_center":[
-      {
-         "dc01":{
-            "nsx_manager":"10.92.53.241",
-            "switches":[
-               "Spline-1",
-               "Spline-2"
-            ],
-            "cvp":[
-               "10.92.64.245"
-            ]
-         }
-      },
-      {
-         "dc02":{
-            "nsx_manager":"nsxmanager02.domain.com",
-            "switches":[
-               "switch-dc02-leaf01",
-               "switch-dc02-leaf02"
-            ],
-            "cvp":[
-               "10.166.10.10",
-               "10.166.10.11",
-               "10.166.10.12"
-            ]
-         }
-      },
-      {
-         "dc03":{
-            "nsx_manager":"nsxmanager03.domain.com",
-            "switches":[
-               "switch-dc02-leaf01",
-               "switch-dc02-leaf01"
-            ],
-            "cvp":[
-               "10.201.10.10",
-               "10.201.10.11",
-               "10.201.10.12"
-            ]
-         }
+   "data_center":{
+      "dc01":{
+         "nsx_manager":"10.92.64.241",
+         "switches":[
+            "Spline-1",
+            "Spline-2"
+         ],
+         "cvps":[
+            "10.92.64.245"
+         ]
       }
-   ],
+   },
    "switch01_ports":{
-      "Port-Channel1500":{
+      "Ethernet29":{
          "description":"Pre-Configured Interface to Hardware Device",
          "mode":"trunk",
          "speed":"10gfull"
       },
-      "Ethernet25":{
+      "Ethernet30":{
          "description":"Pre-Configured Interface to Hardware Device",
          "mode":"access",
-         "speed":"10gfull"
+         "speed":"1000full"
       }
    },
    "switch02_ports":{
-      "Port-Channel1500":{
+      "Ethernet29":{
          "description":"Pre-Configured Interface to Hardware Device",
          "mode":"trunk",
-         "speed":"1000full"
+         "speed":"10gfull"
       },
-      "Ethernet25":{
+      "Ethernet30":{
          "description":"Pre-Configured Interface to Hardware Device",
          "mode":"trunk native",
-         "speed":"10gfull"
+         "speed":"1000full"
       }
    }
 }

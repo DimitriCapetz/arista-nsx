@@ -22,6 +22,7 @@ Created by Dimitri Capetz - dcapetz@arista.com
 # Import requests for API Calls to NSX Manager
 # Import xmltodict and dicttoxml for working with XML
 # Import getpass for password prompt
+# Import argparse for pulling in file input via command line
 # Import json for working with json objects
 # Import CVP REST API Client for configuration of Arista Switches through CVP
 # Import re for parsing and sorting configs
@@ -31,6 +32,7 @@ import requests
 import xmltodict
 from dicttoxml import dicttoxml
 import getpass
+import argparse
 import json
 from cvprac.cvp_client import CvpClient
 from cvprac.cvp_client_errors import CvpApiError
@@ -183,60 +185,30 @@ def nsx_hardware_binding(switch, switch_ports, vlan):
             else:
                 print('Error binding NSX logical switch to ' + switch + ' ' + port)
 
+# Pull in JSON file from command line argument
+parser = argparse.ArgumentParser(description='Configure Arista switchports via CVP and bind to existing NSX logical switch')
+required_arg = parser.add_argument_group('Required Arguments')
+required_arg.add_argument('-j', '--json', dest='json', required=True, help='Input JSON file with data for configuration', type=open)
+args = parser.parse_args()
+data = json.load(args.json)
+
 # Set Variables for Login.
 nsx_username = input('NSX Manager Username: ')
 nsx_password = getpass.getpass(prompt='NSX Manager Password: ')
 cvp_username = input('CVP Username: ')
 cvp_password = getpass.getpass(prompt='CVP Password: ')
 
-# Set Variables for switchport configurations and API Calls.  Ports must be spelled out fully
-# Leave dict empty if no ports on that switch need to be configured.  Would need to look like this {}
-# Should this be an external JSON file that is loaded?
-tenant_name = 'USAA'
-zone_name = 'zone1'
-data_center = 'mn011' # Accepts mn011, mn013 or tx777 as an example
+# Set Variables from JSON object for switchport configurations and API Calls.  Ports must be spelled out fully
+# Leave JSON object empty if no ports on that switch need to be configured.  Would need to look like this {}
+tenant_name = data['tenant_name']
+zone_name = data['zone_name']
+data_center = list(data['data_center'].keys())[0]
+nsx_manager = data['data_center'][data_center]['nsx_manager']
+switches = data['data_center'][data_center]['switches']
+cvps = data['data_center'][data_center]['cvps']
+switch01_ports = data['switch01_ports']
+switch02_ports = data['switch02_ports']
 ls_name = 'vls' + data_center + tenant_name + zone_name
-switch01_ports = {
-    'Ethernet33': {
-        'description': 'Port Description',
-        'mode': 'access',
-        'speed': '1000full'
-    },
-    'Ethernet34': {
-        'description': 'Port Description',
-        'mode': 'trunk native',
-        'speed': '10gfull'
-    }
-}
-switch02_ports = {
-    'Ethernet33': {
-        'description': 'Port Description',
-        'mode': 'access',
-        'speed': '1000full'
-    },
-    'Ethernet34': {
-        'description': 'Port Description',
-        'mode': 'trunk native',
-        'speed': '10gfull'
-    }
-}
-
-# Set Data Center specific variables
-if data_center == 'mn011':
-    nsx_manager = '10.92.64.241' # Update with prod NSX Manager IPs or FQDNs
-    switches = ('Spline-1', 'Spline-2') # ('mlsmn011ofe01', 'mlsmn011ofe02')
-    cvp_ips = ['10.92.64.245'] # ['10.92.64.205', '10.92.64.205', '10.92.64.205']
-elif data_center == 'mn013':
-    nsx_manager = '10.92.64.241'
-    switches = ('mlsmn013ofe01', 'mlsmn013ofe02')
-    cvp_ips = ['10.92.64.205', '10.92.64.205', '10.92.64.205']
-elif data_center == 'tx777':
-    nsx_manager = '10.92.64.241'
-    switches = ('mlstx777ofe01', 'mlstx777ofe02')
-    cvp_ips = ['10.92.64.205', '10.92.64.205', '10.92.64.205']
-else:
-    print('Incorrect Data Center Selection.  Valid choices are mn011, mn013 or tx777')
-    sys.exit()
 
 # GET Hardware Binding ID for CVX
 hw_dict = nsx_get('hardwaregateways')
@@ -254,7 +226,7 @@ for item in ls_dict['virtualWires']['dataPage']['virtualWire']:
 
 # Connect to CVP for configlet push. Loging for the connection is setup to the same dir as the script
 cvp = CvpClient(syslog=True, filename='cvprac_log')
-cvp.connect(cvp_ips, cvp_username, cvp_password)
+cvp.connect(cvps, cvp_username, cvp_password)
 
 # Check if switch01 has ports, then generate config and apply via CVP Configlet for each switch.
 if bool(switch01_ports) == True:

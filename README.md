@@ -10,6 +10,10 @@ These scripts will evolve over time.  For now, they assume the user has already 
 
 One other key thing to note is that the switchport VLAN ID is programmatically derived by taking the first, then last two digits of the auto-assigned VNI from NSX.  This is just an example so the vlan_id variable in each script can be set by any number of methods depending on your needs.
 
+# Usage
+
+The scripts all take their input from an external JSON file that is populated with the data you want to configure.
+
 # Version and Dependency Notes
 
 These scripts are written in python 3 (3.6 to be exact) and I haven't done any checking for backwards compatibility.  They are designed to be ran off-box and not directly on the Arista switches.

@@ -15,12 +15,14 @@ Created by Dimitri Capetz - dcapetz@arista.com
 # Import requests for API Calls to NSX Manager
 # Import xmltodict and dicttoxml for working with XML
 # Import getpass for masked password prompt
+# Import argparse for pulling in file input via command line
 # Import json for working with json objects
 # Import sys for various error handling
 import requests
 import xmltodict
 from dicttoxml import dicttoxml
 import getpass
+import argparse
 import json
 import sys
 
@@ -101,55 +103,27 @@ def nsx_hardware_binding(switch, switch_ports, vlan):
             else:
                 print('Error binding NSX logical switch to ' + switch + ' ' + port)
 
+# Pull in JSON file from command line argument
+parser = argparse.ArgumentParser(description='Create NSX logical switch and bind to pre-configured switchports')
+required_arg = parser.add_argument_group('Required Arguments')
+required_arg.add_argument('-j', '--json', dest='json', required=True, help='Input JSON file with data for configuration', type=open)
+args = parser.parse_args()
+data = json.load(args.json)
+
 # Set Variables for Login.
 nsx_username = input('NSX Manager Username: ')
 nsx_password = getpass.getpass(prompt='NSX Manager Password: ')
 
-# Set Variables for switchport configurations and API Calls.  Ports must be spelled out fully
-# Leave dict empty if no ports on that switch need to be configured.  Would need to look like this {}
-# Should this be an external JSON file that is loaded?
-tenant_name = 'USAA'
-zone_name = 'zone2'
-data_center = 'mn011' # Accepts mn011, mn013 or tx777 as an example
+# Set Variables from JSON object for switchport configurations and API Calls.  Ports must be spelled out fully
+# Leave JSON object empty if no ports on that switch need to be configured.  Would need to look like this {}
+tenant_name = data['tenant_name']
+zone_name = data['zone_name']
+data_center = list(data['data_center'].keys())[0]
+nsx_manager = data['data_center'][data_center]['nsx_manager']
+switches = data['data_center'][data_center]['switches']
+switch01_ports = data['switch01_ports']
+switch02_ports = data['switch02_ports']
 ls_name = 'vls' + data_center + tenant_name + zone_name
-switch01_ports = {
-    'Port-Channel1500': {
-        'description': 'Pre-Configured Interface to Hardware Device',
-        'mode': 'trunk',
-        'speed': '10gfull'
-    },
-    'Ethernet25': {
-        'description': 'Pre-Configured Interface to Hardware Device',
-        'mode': 'access',
-        'speed': '10gfull'
-    }
-}
-switch02_ports = {
-    'Port-Channel1500': {
-        'description': 'Pre-Configured Interface to Hardware Device',
-        'mode': 'trunk',
-        'speed': '1000full'
-    },
-    'Ethernet25': {
-        'description': 'Pre-Configured Interface to Hardware Device',
-        'mode': 'trunk native',
-        'speed': '10gfull'
-    }
-}
-
-# Set Data Center specific variables
-if data_center == 'mn011':
-    nsx_manager = '10.92.64.241' # Update with prod NSX Manager IPs or FQDNs
-    switches = ('Spline-1', 'Spline-2') # ('mlsmn011ofe01', 'mlsmn011ofe02')
-elif data_center == 'mn013':
-    nsx_manager = '10.92.64.241'
-    switches = ('mlsmn013ofe01', 'mlsmn013ofe02')
-elif data_center == 'tx777':
-    nsx_manager = '10.92.64.241'
-    switches = ('mlstx777ofe01', 'mlstx777ofe02')
-else:
-    print('Incorrect Data Center Selection.  Valid choices are mn011, mn013 or tx777')
-    sys.exit()
 
 # GET NSX Manager Transport Zone info to pull out Scope ID
 tz_dict = nsx_get('scopes')

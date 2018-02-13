@@ -22,6 +22,7 @@ Created by Dimitri Capetz - dcapetz@arista.com
 # Import requests for API Calls to NSX Manager
 # Import xmltodict and dicttoxml for working with XML
 # Import getpass for password prompt
+# Import argparse for pulling in file input via command line
 # Import json for working with json objects
 # Import pyEAPI for configuration of Arista Switches
 # Import sys for various error handling
@@ -29,6 +30,7 @@ import requests
 import xmltodict
 from dicttoxml import dicttoxml
 import getpass
+import argparse
 import json
 import pyeapi
 import sys
@@ -175,58 +177,29 @@ def switchport_config_update(switch, switch_ports):
             sys.exit()
     switch_node.enable('write')
 
+# Pull in JSON file from command line argument
+parser = argparse.ArgumentParser(description='Configure Arista switchports via eAPI and bind to existing NSX logical switch')
+required_arg = parser.add_argument_group('Required Arguments')
+required_arg.add_argument('-j', '--json', dest='json', required=True, help='Input JSON file with data for configuration', type=open)
+args = parser.parse_args()
+data = json.load(args.json)
+
 # Set Variables for Login
 nsx_username = input('NSX Manager Username: ')
 nsx_password = getpass.getpass(prompt='NSX Manager Password: ')
 switch_username = input('Switch Username: ')
 switch_password = getpass.getpass(prompt='Switch Password: ')
 
-# Set Variables for switchport configurations and API Calls.  Ports must be spelled out fully
-# Leave dict empty if no ports on that switch need to be configured.  Would need to look like this {}
-# Should this be an external JSON file that is loaded?
-tenant_name = 'USAA'
-zone_name = 'zone1'
-data_center = 'mn011' # Accepts mn011, mn013 or tx777 as an example
+# Set Variables from JSON object for switchport configurations and API Calls.  Ports must be spelled out fully
+# Leave JSON object empty if no ports on that switch need to be configured.  Would need to look like this {}
+tenant_name = data['tenant_name']
+zone_name = data['zone_name']
+data_center = list(data['data_center'].keys())[0]
+nsx_manager = data['data_center'][data_center]['nsx_manager']
+switches = data['data_center'][data_center]['switches']
+switch01_ports = data['switch01_ports']
+switch02_ports = data['switch02_ports']
 ls_name = 'vls' + data_center + tenant_name + zone_name
-switch01_ports = {
-    'Ethernet16': {
-        'description': 'Port Description',
-        'mode': 'access',
-        'speed': '1000full'
-    },
-    'Ethernet17': {
-        'description': 'Port Description',
-        'mode': 'trunk native',
-        'speed': '10gfull'
-    }
-}
-switch02_ports = {
-    'Ethernet16': {
-        'description': 'Port Description',
-        'mode': 'access',
-        'speed': '1000full'
-    },
-    'Ethernet17': {
-        'description': 'Port Description',
-        'mode': 'trunk native',
-        'speed': '10gfull'
-    }
-}
-
-# Set Data Center specific variables
-if data_center == 'mn011':
-    nsx_manager = '10.92.64.241' # Update with prod NSX Manager IPs or FQDNs
-    switches = ('Spline-1', 'Spline-2') # ('mlsmn011ofe01', 'mlsmn011ofe02')
-    switch_ips = ('10.92.64.204', '10.92.64.205') # Remove this line later.  Not needed for prod if switches in DNS
-elif data_center == 'mn013':
-    nsx_manager = '10.92.64.241'
-    switches = ('mlsmn013ofe01', 'mlsmn013ofe02')
-elif data_center == 'tx777':
-    nsx_manager = '10.92.64.241'
-    switches = ('mlstx777ofe01', 'mlstx777ofe02')
-else:
-    print('Incorrect Data Center Selection.  Valid choices are mn011, mn013 or tx777')
-    sys.exit()
 
 # GET Hardware Binding ID for CVX
 hw_dict = nsx_get('hardwaregateways')
@@ -243,6 +216,7 @@ for item in ls_dict['virtualWires']['dataPage']['virtualWire']:
         vlan_id = ls_vni_id[0] + ls_vni_id[-2:]
 
 # Check if switch01 has ports that require configuration and call function to configure
+switch_ips = ['10.92.64.204', '10.92.64.205'] # Needed because I don't have DNS resolution.  Remove this line in prod.
 if bool(switch01_ports) == True:
     switchport_config_update(switch_ips[0], switch01_ports) # Change back to switches[0] in prod for use with DNS.
 # Check if switch02 has ports that require configuration and call function to configure
