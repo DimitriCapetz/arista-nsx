@@ -3,36 +3,38 @@
    "zone_name":"zone1",
    "data_center":{
       "dc01":{
-         "nsx_manager":"10.92.64.241",
+         "nsx_manager":"10.88.72.241",
          "switches":[
-            "Spline-1",
-            "Spline-2"
+            "leaf01",
+            "leaf02"
          ],
          "cvps":[
-            "10.92.64.245"
+            "10.101.64.245",
+            "10.101.64.246",
+            "10.101.64.247"
          ]
       }
    },
    "switch01_ports":{
       "Ethernet29":{
-         "description":"Pre-Configured Interface to Hardware Device",
+         "description":"Firewall Uplink",
          "mode":"trunk",
          "speed":"10gfull"
       },
       "Ethernet30":{
-         "description":"Pre-Configured Interface to Hardware Device",
+         "description":"Bare Metal Service",
          "mode":"access",
          "speed":"1000full"
       }
    },
    "switch02_ports":{
       "Ethernet29":{
-         "description":"Pre-Configured Interface to Hardware Device",
+         "description":"Load Balance Uplink",
          "mode":"trunk",
          "speed":"10gfull"
       },
       "Ethernet30":{
-         "description":"Pre-Configured Interface to Hardware Device",
+         "description":"NAS Device",
          "mode":"trunk native",
          "speed":"1000full"
       }
