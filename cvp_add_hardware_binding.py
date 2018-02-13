@@ -140,7 +140,10 @@ def switch_configlet_update(switch, switch_ports):
             switch_response = cvp.api.apply_configlets_to_device('NSX Binding Script', switch_info, [switch_configlet_data], create_task=True)
 
 def execute_pending_tasks():
-    ''' Executes ALL pending tasks in CVP.  Use carefully in active environment.
+    ''' Executes pending tasks in CVP.  Use carefully in active environment.
+        It will provide some checking to make sure the pending tasks are on the switches
+        from the input file and created by the same user running the script, etc.
+        It could still execute tasks that were previously created from the same user.
         Waits inserted to ensure logs are complete and push complete before moving on.
     
     Returns:
@@ -148,15 +151,18 @@ def execute_pending_tasks():
     '''
     pending_tasks = cvp.api.get_tasks_by_status('Pending')
     for index in range(len(pending_tasks)):
-        task_id = pending_tasks[index]['workOrderId']
-        push_task = cvp.api.execute_task(task_id)
-        # Wait to ensure task push is complete so full logs are available.
-        print('Waiting for task execution to complete...')
-        time.sleep(15)
-        task_logs = cvp.api.get_logs_by_id(task_id)
-        for index in range(len(task_logs['data'])):
-            if task_logs['data'][index]['logDetails'].startswith('Configlet push response') == True:
-                print('Task '+ task_id + ' - ' + task_logs['data'][index]['logDetails'] + ' - ' + task_logs['data'][index]['objectName'])
+        if pending_tasks[index]['description'].startswith('Configlet Assign'):
+            if pending_tasks[index]['workOrderDetails']['netElementHostName'] in data['data_center'][data_center]['switches']:
+                if pending_tasks[index]['createdBy'] == cvp_username:
+                    task_id = pending_tasks[index]['workOrderId']
+                    push_task = cvp.api.execute_task(task_id)
+                    # Wait to ensure task push is complete so full logs are available.
+                    print('Waiting for task execution to complete...')
+                    time.sleep(15)
+                    task_logs = cvp.api.get_logs_by_id(task_id)
+                    for index in range(len(task_logs['data'])):
+                        if task_logs['data'][index]['logDetails'].startswith('Configlet push response') == True:
+                            print('Task '+ task_id + ' - ' + task_logs['data'][index]['logDetails'] + ' - ' + task_logs['data'][index]['objectName'])
 
 def nsx_hardware_binding(switch, switch_ports, vlan):
     ''' Generate body and POST to NSX Manager if ports are present
