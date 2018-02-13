@@ -8,11 +8,15 @@ These scripts will evolve over time.  For now, they assume the user has already 
 - Configure additional switchports via Arista eAPI and perform the hardware bindings in NSX for those ports.
 - Configure additional switchports via Arista CloudVision Portal REST API and perform the hardware bindings in NSX for those ports.
 
-One other key thing to note is that the switchport VLAN ID is programmatically derived by taking the first, then last two digits of the auto-assigned VNI from NSX.  This is just an example so the vlan_id variable in each script can be set by any number of methods depending on your needs.
+One other key thing to note is that things like switchport VLAN ID and logical switch name are programmatically derived.  For example by taking the first, then last two digits of the auto-assigned VNI from NSX, we create the vlan_id variable.  This is just an example so the vlan_id and ls_name variable in each script can be set by any number of methods depending on your needs.
 
 # Usage
 
-The scripts all take their input from an external JSON file that is populated with the data you want to configure.
+The scripts all take their input from an external JSON file that is populated with the data you want to configure.  I have included an example JSON file here for formatting purposes.  Call the scripts like so:
+
+```
+python create_logical_switch.py -j input_example.json
+```
 
 # Version and Dependency Notes
 
@@ -20,15 +24,17 @@ These scripts are written in python 3 (3.6 to be exact) and I haven't done any c
 
 Install python dependencies by running...
 
-'''
+```
 pip install -r /path/to/requirements.txt
-'''
+```
 
 These scripts are fairly generalized so should be backwards and forwards compatible with various version of NSX, EOS and CVP.  But for the record, I used...
 
 - NSX-v version 6.3.5
 - Arista EOS version 4.20.2.1F
 - Arista CVP version 2017.2.3
+
+The scripts should work using DNS names or IPs in the input JSON file EXCEPT for the eapi script.  This one requires the use of DNS for the switches today.  If that is an issue, it can be worked around in a number of ways.  Contact me if you help in that area.
 
 # Links for more information
 
