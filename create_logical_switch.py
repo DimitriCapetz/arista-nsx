@@ -88,6 +88,9 @@ def nsx_hardware_binding(switch, switch_ports, vlan):
     # So far as I can tell, these can only be done one switch per request and must be looped through.
     hw_bind_uri = 'virtualwires/' + ls_id + '/hardwaregateways'
     for port, config in switch_ports.items():
+        bind_check_dict = nsx_get('virtualwires/' + ls_id + '/hardwaregateways')
+        print(bind_check_dict)
+        sys.exit()
         if config['mode'] == 'access':
             hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': '0', 'switchName': switch, 'portName': port}
             hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
@@ -134,6 +137,14 @@ tz_scope_id = tz_dict['vdnScopes']['vdnScope']['objectId']
 hw_dict = nsx_get('hardwaregateways')
 # Parse out Hardware Binfing ID for later use
 hw_id = hw_dict['list']['hardwareGateway']['objectId']
+
+# GET all logical switches to check for duplicate by name.
+# Note that NSX will let you create logical switches with the same name.
+all_ls_dict = nsx_get('scopes/' + tz_scope_id + '/virtualwires')
+for index in range(len(all_ls_dict['virtualWires']['dataPage']['virtualWire'])):
+    if all_ls_dict['virtualWires']['dataPage']['virtualWire'][index]['name'] == ls_name:
+        print('Logical Switch already exists in NSX.  Please verify naming and input file.')
+        sys.exit()
 
 # POST to create new Logical Switch
 # Generate Dictionary for Request Body and feed into POST Function
