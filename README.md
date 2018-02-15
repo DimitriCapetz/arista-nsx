@@ -15,7 +15,7 @@ One other key thing to note is that things like switchport VLAN ID and logical s
 The scripts all take their input from an external JSON file that is populated with the data you want to configure.  I have included an example JSON file here for formatting purposes.  Call the scripts like so:
 
 ```
-python create_logical_switch.py -j input_example.json
+python create_logical_switch.py -j path/to/input_example.json
 ```
 
 # Version and Dependency Notes
