@@ -176,6 +176,12 @@ def nsx_hardware_binding(switch, switch_ports, vlan):
     # So far as I can tell, these can only be done one switch per request and must be looped through.
     hw_bind_uri = 'virtualwires/' + ls_id + '/hardwaregateways'
     for port, config in switch_ports.items():
+        # Check existing hardware bindings to see if there is a duplicate. Notify user but continue.
+        bind_check_dict = nsx_get('virtualwires/' + ls_id + '/hardwaregateways')
+        for index in range(len(bind_check_dict['list']['hardwareGatewayBinding'])):
+            if bind_check_dict['list']['hardwareGatewayBinding'][index]['switchName'] == switch:
+                if bind_check_dict['list']['hardwareGatewayBinding'][index]['portName'] == port:
+                    print(switch + ' ' + port + ' was already bound to ' + ls_name + '. Please verify config.')
         if config['mode'] == 'access':
             hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': '0', 'switchName': switch, 'portName': port}
             hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
