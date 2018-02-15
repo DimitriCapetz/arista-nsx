@@ -60,7 +60,7 @@ def nsx_get(uri):
             print('Unable to login to NSX Manager. Verify username and password.')
             sys.exit()
         if get_response.status_code == 404:
-            print('URI not found. Verify NSX Manager IP. If NSX was recently upgraded, verify any API changes in release notes.')
+            print('URI not found. Verify NSX Manager IP and JSON input file. If NSX was recently upgraded, verify any API changes in release notes.')
             sys.exit()
         else:
             get_dict = xmltodict.parse(get_response.content, dict_constructor=dict)
@@ -115,6 +115,13 @@ def switch_configlet_update(switch, switch_ports):
             switch_configlet_data = cvp.api.get_configlet_by_name(switch + ' Switchports')
             # Check if configlet has existing data.  If so, append new config.
             if bool(switch_configlet_data['config']) == True:
+                # Check if ports already exist in configlet.  If so, skip loop iteration.
+                for port, config in switch_ports.items():
+                    if port in switch_configlet_data['config']:
+                        print(switch + ' ' + port + ' already exists in ' + switch + ' Switchports configlet.  Verify config.')
+                        print('Skipping edits for ' + switch + ' Switchports configlet.')
+                        port_config_exception = 1
+                        return port_config_exception
                 switch_configlet = switch_configlet_data['config'].split('\n\n')
                 switch_configlet.extend(switch_config_to_add)
                 # Sort configlet data so interfaces show up in proper order.
@@ -126,6 +133,7 @@ def switch_configlet_update(switch, switch_ports):
                 switch_configlet = '\n\n'.join(switch_configlet)
             cvp.api.update_configlet(switch_configlet, switch_configlet_data['key'], switch + ' Switchports')
             print('Adding config to ' + switch + ' Switchports configlet...')
+            return
         # Exception to create configlet and apply to switch if it doesn't yet exist.
         except CvpApiError:
             print(switch + ' Switchports configlet doesn\'t exist.  Creating and applying to ' + switch)
@@ -138,6 +146,7 @@ def switch_configlet_update(switch, switch_ports):
             # Pull down switch info to attach new configlet.
             switch_info = cvp.api.get_device_by_name(switch)
             switch_response = cvp.api.apply_configlets_to_device('NSX Binding Script', switch_info, [switch_configlet_data], create_task=True)
+            return
 
 def execute_pending_tasks():
     ''' Executes pending tasks in CVP.  Use carefully in active environment.
@@ -242,10 +251,16 @@ cvp.connect(cvps, cvp_username, cvp_password)
 
 # Check if switch01 has ports, then generate config and apply via CVP Configlet for each switch.
 if bool(switch01_ports) == True:
-    switch_configlet_update(switches[0], switch01_ports)
+    switch01_push = switch_configlet_update(switches[0], switch01_ports)
+    if switch01_push == 1:
+        print('Exiting script to prevent misconfiguration. Verify switch01_ports config data.')
+        sys.exit()
 # Check if switch02 has ports, then generate config and apply via CVP Configlet for each switch.
 if bool(switch02_ports) == True:
-    switch_configlet_update(switches[1], switch02_ports)
+    switch02_push = switch_configlet_update(switches[1], switch02_ports)
+    if switch02_push == 1:
+        print('Exiting script to prevent misconfiguration. Verify switch02_ports config data.')
+        sys.exit()
 
 # Execute pending tasks in CVP to push updated configlets to switches
 # Add wait time before to ensure configlet changes are registered as tasks

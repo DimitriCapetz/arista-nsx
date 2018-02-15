@@ -46,7 +46,7 @@ def nsx_get(uri):
             print('Unable to login to NSX Manager. Verify username and password.')
             sys.exit()
         if get_response.status_code == 404:
-            print('URI not found. Verify NSX Manager IP. If NSX was recently upgraded, verify any API changes in release notes.')
+            print('URI not found. Verify NSX Manager IP and JSON input file. If NSX was recently upgraded, verify any API changes in release notes.')
             sys.exit()
         else:
             get_dict = xmltodict.parse(get_response.content, dict_constructor=dict)

@@ -55,7 +55,7 @@ def nsx_get(uri):
             print('Unable to login to NSX Manager. Verify username and password.')
             sys.exit()
         if get_response.status_code == 404:
-            print('URI not found. Verify NSX Manager IP. If NSX was recently upgraded, verify any API changes in release notes.')
+            print('URI not found. Verify NSX Manager IP and JSON input file. If NSX was recently upgraded, verify any API changes in release notes.')
             sys.exit()
         else:
             get_dict = xmltodict.parse(get_response.content, dict_constructor=dict)
@@ -142,6 +142,11 @@ def switchport_config_update(switch, switch_ports):
     switch_node = eapi_connect(switch)
     # Add Error Handling to check for pre-existing port config, add vlan to trunk, etc.
     for port, config in switch_ports.items():
+        port_config = switch_node.enable('show running-config interfaces ' + port)
+        if len(port_config[0]['result']['output']) > 25:
+            print(switch + ' ' + port + ' already has configuration present.')
+            port_config_exception = 1
+            return port_config_exception
         if config['mode'] == 'trunk':
             switch_node.config(
                 [
@@ -182,6 +187,7 @@ def switchport_config_update(switch, switch_ports):
             print('Incorrect Port Mode Selection for ' + switch + ' ' + port + '.  Please verify port configurations.  Valid options are trunk, trunk native and access.')
             sys.exit()
     switch_node.enable('write')
+    return
 
 # Pull in JSON file from command line argument
 parser = argparse.ArgumentParser(description='Configure Arista switchports via eAPI and bind to existing NSX logical switch')
@@ -223,10 +229,16 @@ for item in ls_dict['virtualWires']['dataPage']['virtualWire']:
 
 # Check if switch01 has ports that require configuration and call function to configure
 if bool(switch01_ports) == True:
-    switchport_config_update(switches[0], switch01_ports)
+    switch01_push = switchport_config_update(switches[0], switch01_ports)
+    if switch01_push == 1:
+        print('Exiting script to prevent misconfiguration. Verify switch01_ports config data and rerun.')
+        sys.exit()
 # Check if switch02 has ports that require configuration and call function to configure
 if bool(switch02_ports) == True:
-    switchport_config_update(switches[1], switch02_ports)
+    switch02_push = switchport_config_update(switches[1], switch02_ports)
+    if switch02_push == 1:
+        print('Exiting script to prevent misconfiguration. Verify switch02_ports config data and rerun.')
+        sys.exit()
 
 # Check if switch01 has ports for binding, then call function to bind ports
 if bool(switch01_ports) == True:
