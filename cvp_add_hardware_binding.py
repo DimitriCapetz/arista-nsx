@@ -98,39 +98,86 @@ def switch_configlet_update(switch, switch_ports):
             switch (str): The name of the switch to be configured
             switch_ports (dict): A dictionary containing configuration attributes
     '''
-    switch_config_to_add = []
+    switch_eth_config_to_add = []
+    switch_pc_config_to_add = []
     if bool(switch_ports) == True:
         # Generate Switch Configurations as list items.
         for port, config in switch_ports.items():
-            if config['mode'] == 'trunk':
-                switch_config_to_add.extend(['interface ' + port + '\n   description ' + config['description'] + '\n   speed forced ' + config['speed'] + '\n   switchport trunk allowed vlan ' + vlan_id + '\n   switchport mode trunk' + '\n   no shutdown'])
-            elif config['mode'] == 'trunk native':
-                switch_config_to_add.extend(['interface ' + port + '\n   description ' + config['description'] + '\n   speed forced ' + config['speed'] + '\n   switchport trunk native vlan ' + vlan_id + '\n   switchport mode trunk' + '\n   no shutdown'])
-            elif config['mode'] == 'access':
-                switch_config_to_add.extend(['interface ' + port + '\n   description ' + config['description'] + '\n   speed forced ' + config['speed'] + '\n   switchport access vlan ' + vlan_id + '\n   switchport mode access' + '\n   no shutdown'])
+            if port.startswith('Port'):
+                port_channel_id = (port.split('l'))[1]
+                for index in range(len(config['local_members'])):
+                    switch_eth_config_to_add.extend(['interface ' + config['local_members'][index] + '\n   description ' + config['description'] + '\n   channel-group ' + port_channel_id + ' mode active\n   speed forced ' + config['speed'] + '\n   no shutdown'])
+                if config['mode'] == 'trunk':
+                    switch_pc_config_to_add.extend(['interface ' + port + '\n   description ' + config['description'] + '\n   switchport trunk allowed vlan ' + vlan_id + '\n   switchport mode trunk' + '\n   no shutdown'])
+                elif config['mode'] == 'trunk native':
+                    switch_pc_config_to_add.extend(['interface ' + port + '\n   description ' + config['description'] + '\n   switchport trunk native vlan ' + vlan_id + '\n   switchport mode trunk' + '\n   no shutdown'])
+                elif config['mode'] == 'access':
+                    switch_pc_config_to_add.extend(['interface ' + port + '\n   description ' + config['description'] + '\n   switchport access vlan ' + vlan_id + '\n   switchport mode access' + '\n   no shutdown'])
+                else:
+                    print('Incorrect Port Mode Selection for ' + switch +
+                    '.  Please verify port configurations.  Valid options are trunk, trunk native and access.')
+                    sys.exit()
             else:
-                print('Incorrect Port Mode Selection for ' + switch + '.  Please verify port configurations.  Valid options are trunk, trunk native and access.')
-                sys.exit()
+                if config['mode'] == 'trunk':
+                    switch_eth_config_to_add.extend(['interface ' + port + '\n   description ' + config['description'] + '\n   speed forced ' +     config['speed'] + '\n   switchport trunk allowed vlan ' + vlan_id + '\n   switchport mode trunk' + '\n   no shutdown'])
+                elif config['mode'] == 'trunk native':
+                    switch_eth_config_to_add.extend(['interface ' + port + '\n   description ' + config['description'] + '\n   speed forced ' +     config['speed'] + '\n   switchport trunk native vlan ' + vlan_id + '\n   switchport mode trunk' + '\n   no shutdown'])
+                elif config['mode'] == 'access':
+                    switch_eth_config_to_add.extend(['interface ' + port + '\n   description ' + config['description'] + '\n   speed forced ' +     config['speed'] + '\n   switchport access vlan ' + vlan_id + '\n   switchport mode access' + '\n   no shutdown'])
+                else:
+                    print('Incorrect Port Mode Selection for ' + switch + '.  Please verify port configurations.  Valid options are trunk, trunk native and access.')
+                    sys.exit()
         try:
             switch_configlet_data = cvp.api.get_configlet_by_name(switch + ' Switchports')
             # Check if configlet has existing data.  If so, append new config.
             if bool(switch_configlet_data['config']) == True:
-                # Check if ports already exist in configlet.  If so, skip loop iteration.
+                # Check if any ports already exist in configlet.  If so, skip loop iteration.
                 for port, config in switch_ports.items():
+                    if port.startswith('Port'):
+                        for index in range(len(config['local_members'])):
+                            if config['local_members'][index] in switch_configlet_data['config']:
+                                print(switch + ' ' + config['local_members'][index] + ' already exists in ' + switch + ' Switchports configlet.  Verify config.')
+                                print('Skipping edits for ' + switch + ' Switchports configlet.')
+                                port_config_exception = 1
+                                return port_config_exception
                     if port in switch_configlet_data['config']:
                         print(switch + ' ' + port + ' already exists in ' + switch + ' Switchports configlet.  Verify config.')
                         print('Skipping edits for ' + switch + ' Switchports configlet.')
                         port_config_exception = 1
                         return port_config_exception
+                # Take existing configlet data and split into list for sorting.
+                # Separate Eths and PCs into separate list for desired placement in configlet.
                 switch_configlet = switch_configlet_data['config'].split('\n\n')
-                switch_configlet.extend(switch_config_to_add)
+                switch_eth_configlet = []
+                switch_pc_configlet = []
+                for index in range(len(switch_configlet)):
+                    if switch_configlet[index].startswith('interface Eth'):
+                        switch_eth_configlet.extend([switch_configlet[index]])
+                    elif switch_configlet[index].startswith('interface Port'):
+                        switch_pc_configlet.extend([switch_configlet[index]])
+                switch_eth_configlet.extend(switch_eth_config_to_add)
+                if (bool(switch_pc_configlet) == True) or (bool(switch_pc_config_to_add) == True):
+                    switch_pc_configlet.extend(switch_pc_config_to_add)
                 # Sort configlet data so interfaces show up in proper order.
-                switch_configlet = sorted(switch_configlet, key=lambda x:list(map(int, re.findall('[0-9/]+(?=\n\s\s\s)', x)[0].split('/'))))
-                switch_configlet = '\n\n'.join(switch_configlet)
+                switch_eth_configlet = sorted(switch_eth_configlet, key=lambda x:list(map(int, re.findall('[0-9/]+(?=\n\s\s\s)', x)[0].split('/'))))
+                switch_eth_configlet = '\n\n'.join(switch_eth_configlet)
+                if bool(switch_pc_configlet) == True:
+                    switch_pc_configlet = sorted(switch_pc_configlet, key=lambda x:list(map(int, re.findall('[0-9/]+(?=\n\s\s\s)', x)[0].split('/'))))
+                    switch_pc_configlet = '\n\n'.join(switch_pc_configlet)
+                    switch_configlet = switch_pc_configlet + '\n\n' + switch_eth_configlet
+                else:
+                    switch_configlet = switch_eth_configlet
             else:
                 # Sort configlet data so interfaces show up in proper order.
-                switch_configlet = sorted(switch_config_to_add, key=lambda x:list(map(int, re.findall('[0-9/]+(?=\n\s\s\s)', x)[0].split('/'))))
-                switch_configlet = '\n\n'.join(switch_configlet)
+                switch_eth_configlet = sorted(switch_eth_config_to_add, key=lambda x:list(map(int, re.findall('[0-9/]+(?=\n\s\s\s)', x)[0].split('/'))))
+                switch_eth_configlet = '\n\n'.join(switch_eth_configlet)
+                if bool(switch_pc_config_to_add) == True:
+                    print('PC Config Exists')
+                    switch_pc_configlet = sorted(switch_pc_config_to_add, key=lambda x:list(map(int, re.findall('[0-9/]+(?=\n\s\s\s)', x)[0].split('/'))))
+                    switch_pc_configlet = '\n\n'.join(switch_pc_configlet)
+                    switch_configlet = switch_pc_configlet + '\n\n' + switch_eth_configlet
+                else:
+                    switch_configlet = switch_eth_configlet
             cvp.api.update_configlet(switch_configlet, switch_configlet_data['key'], switch + ' Switchports')
             print('Adding config to ' + switch + ' Switchports configlet...')
             return
@@ -139,8 +186,14 @@ def switch_configlet_update(switch, switch_ports):
             print(switch + ' Switchports configlet doesn\'t exist.  Creating and applying to ' + switch)
             switch_configlet_name = switch + ' Switchports'
             # Sort new configlet data so interfaces show up in proper order
-            switch_configlet = sorted(switch_config_to_add, key=lambda x:list(map(int, re.findall('[0-9/]+(?=\n\s\s\s)', x)[0].split('/'))))
-            switch_configlet = '\n\n'.join(switch_configlet)
+            switch_eth_configlet = sorted(switch_eth_config_to_add, key=lambda x:list(map(int, re.findall('[0-9/]+(?=\n\s\s\s)', x)[0].split('/'))))
+            switch_eth_configlet = '\n\n'.join(switch_eth_configlet)
+            if bool(switch_pc_config_to_add) == True:
+                switch_pc_configlet = sorted(switch_pc_config_to_add, key=lambda x:list(map(int, re.findall('[0-9/]+(?=\n\s\s\s)', x)[0].split('/'))))
+                switch_pc_configlet = '\n\n'.join(switch_pc_configlet)
+                switch_configlet = switch_pc_configlet + '\n\n' + switch_eth_configlet
+            else:
+                switch_configlet = switch_eth_configlet
             switch_configlet_push = cvp.api.add_configlet(switch_configlet_name, switch_configlet)
             switch_configlet_data = cvp.api.get_configlet_by_name(switch + ' Switchports')
             # Pull down switch info to attach new configlet.

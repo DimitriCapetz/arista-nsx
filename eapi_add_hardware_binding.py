@@ -131,6 +131,29 @@ def eapi_connect(switch_ip):
     switch_node = pyeapi.client.Node(switch_conn)
     return switch_node
 
+def eapi_switchport_config_check(switch, port):
+    ''' Check to see if a switchport already has configuration in
+        place.  If it does, return a value of 1 for error handling.
+    
+    Args:
+        switch (str): The IP address or FQDN of the Arista switch
+        port (str): The interface ID to check
+    
+    Returns:
+        port_config_exception (int): A value to check if port is configured. 1 indicates config is present
+    '''
+    switch_node = eapi_connect(switch)
+    # Validate port config.  Only way to do this today is by length of configuration.
+    # Once the command is fully JSONized, this can be refined.  But length should be 100% accurate measure.
+    port_config = switch_node.enable('show running-config interfaces ' + port)
+    if len(port_config[0]['result']['output']) > 26:
+        port_config_exception = 1
+        return port_config_exception
+    else:
+        port_config_exception = 0
+        return port_config_exception
+    
+
 def switchport_config_update(switch, switch_ports):
     ''' Generate switchport configurations and push to switches via
         Arista eAPI
@@ -140,52 +163,97 @@ def switchport_config_update(switch, switch_ports):
         switch_ports (dict): A dictionary containing configuration attributes
     '''
     switch_node = eapi_connect(switch)
-    # Add Error Handling to check for pre-existing port config, add vlan to trunk, etc.
+    # Loop through to configure switchports in input JSON file.
     for port, config in switch_ports.items():
+        print('Checking current status of ' + switch + ' ' + port + ' before configuration begins...')
         port_config = switch_node.enable('show running-config interfaces ' + port)
-        if len(port_config[0]['result']['output']) > 25:
+        # Validate if port already has existing config.  If it does, it will not be configured.
+        if eapi_switchport_config_check(switch, port) > 0:
             print(switch + ' ' + port + ' already has configuration present.')
-            port_config_exception = 1
-            return port_config_exception
+            return 1
+        print(port)
+        if port.startswith('Port'):
+            print('Adding member interfaces to ' + switch + ' ' + port)
+            # Pull out port-channel ID
+            port_channel_id = (port.split('l'))[1]
+            # Assign member interfaces to port-channel
+            for index in range(len(config['local_members'])):
+                print('Configuring ' + switch + ' ' + port + ' member interfaces...')
+                member_config = switch_node.enable('show running-config interfaces ' + config['local_members'][index])
+                if eapi_switchport_config_check(switch, config['local_members'][index]) > 0:
+                    print(switch + ' ' + config['local_members'][index] + ' already has configuration present')
+                    return 1
+                switch_node.config(
+                    [
+                        'interface ' + config['local_members'][index],
+                        'description ' + config['description'],
+                        'channel-group ' + port_channel_id + ' mode active',
+                        'speed forced ' + config['speed'],
+                        'no shutdown'
+                    ]
+                )
+        # Apply correct configuration template based on mode.  These templates can be changed at will.
         if config['mode'] == 'trunk':
+            print('Configuring ' + switch + ' ' + port + '...')
             switch_node.config(
                 [
                     'interface ' + port,
                     'description ' + config['description'],
-                    'speed forced ' + config['speed'],
                     'switchport trunk allowed vlan ' + vlan_id,
                     'switchport mode trunk',
                     'no shutdown'
                 ]
             )
+            if not port.startswith('Port'):
+                switch_node.config(
+                    [
+                        'interface ' + port,
+                        'speed forced ' + config['speed']
+                    ]
+                )
             print(switch + ' ' + port + ' configured')
         elif config['mode'] == 'trunk native':
+            print('Configuring ' + switch + ' ' + port + '...')
             switch_node.config(
                 [
                     'interface ' + port,
                     'description ' + config['description'],
-                    'speed forced ' + config['speed'],
                     'switchport trunk native vlan ' + vlan_id,
                     'switchport mode trunk',
                     'no shutdown'
                 ]
             )
+            if not port.startswith('Port'):
+                switch_node.config(
+                    [
+                        'interface ' + port,
+                        'speed forced ' + config['speed']
+                    ]
+                )
             print(switch + ' ' + port + ' configured')
         elif config['mode'] == 'access':
+            print('Configuring ' + switch + ' ' + port + '...')
             switch_node.config(
                 [
                     'interface ' + port,
                     'description ' + config['description'],
-                    'speed forced ' + config['speed'],
                     'switchport access vlan ' + vlan_id,
                     'switchport mode access',
                     'no shutdown'
                 ]
             )
+            if not port.startswith('Port'):
+                switch_node.config(
+                    [
+                        'interface ' + port,
+                        'speed forced ' + config['speed']
+                    ]
+                )
             print(switch + ' ' + port + ' configured')
         else:
-            print('Incorrect Port Mode Selection for ' + switch + ' ' + port + '.  Please verify port configurations.  Valid options are trunk, trunk native and access.')
+            print('Incorrect Port Mode Selection for ' + switch + ' ' + port + '. Please verify port configurations.  Valid options are trunk, trunk native and access.')
             sys.exit()
+    print('Saving ' + switch + ' configuration...')
     switch_node.enable('write')
     return
 

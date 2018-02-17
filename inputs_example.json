@@ -16,6 +16,16 @@
       }
    },
    "switch01_ports":{
+      "Port-Channel10":{
+         "description":"Port-Channel Interface",
+         "mode":"trunk",
+         "speed":"10gfull",
+         "local_members": [
+           "Ethernet46",
+           "Ethernet35"
+          ],
+          "is_mlag": false
+      },
       "Ethernet29":{
          "description":"Firewall Uplink",
          "mode":"trunk",
