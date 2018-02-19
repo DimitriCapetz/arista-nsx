@@ -4,11 +4,11 @@ These scripts are meant to automate the steps a typical network admin would take
 
 These scripts will evolve over time.  For now, they assume the user has already setup the Arista - NSX integration via CloudVision eXchange and vCenter using the standard process.  The scripts individually perform the following functions.
 
-- Create an NSX Logical Switch and bind it to a pre-defined set of ports on an Arista switch pair.  This port could be something that is bound to every logical switch, like a NAS device, external layer 7 firewall or application load balancer.
+- Create an NSX Logical Switch and bind it to a pre-configured set of ports on an Arista switch pair.  This port could be something that is bound to every logical switch, like a NAS device, external layer 7 firewall or application load balancer.
 - Configure additional switchports via Arista eAPI and perform the hardware bindings in NSX for those ports.
 - Configure additional switchports via Arista CloudVision Portal REST API and perform the hardware bindings in NSX for those ports.
 
-One other key thing to note is that things like switchport VLAN ID and logical switch name are programmatically derived.  For example by taking the first, then last two digits of the auto-assigned VNI from NSX, we create the vlan_id variable.  This is just an example so the vlan_id and ls_name variable in each script can be set by any number of methods depending on your needs.
+One other key thing to note is that things like switchport VLAN ID, switchport configurations and logical switch name are programmatically derived.  For example by taking the first, then last two digits of the auto-assigned VNI from NSX, we create the vlan_id variable.  This is just an example so the vlan_id and ls_name variable in each script can be set by any number of methods depending on your needs.
 
 # Usage
 
@@ -17,6 +17,18 @@ The scripts all take their input from an external JSON file that is populated wi
 ```
 python create_logical_switch.py -j path/to/input_example.json
 ```
+
+The format of the input file must be based on the template file provided.  A few notes on it...
+
+- Any number of switches can be added to the JSON array.
+- The name of the switch must match exactly to its corresponding "port_configs" entry in the file.
+- The order of switches and port entries doesn't matter.
+- All interface names must be properly capitalized and fully spelled out.
+- Port-channel interfaces require the additional fields for "local members" and "is_mlag" (Note: Today, Mlag interfaces are not supported.  Coming soon!)
+
+If you edit the file and are having issues getting the script to function, verify that the input is a valid JSON file using an online tool like...
+
+[JSON Validator](https://jsonformatter.curiousconcept.com/)
 
 # Version and Dependency Notes
 
