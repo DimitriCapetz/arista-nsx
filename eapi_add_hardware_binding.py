@@ -85,39 +85,6 @@ def nsx_post(uri, body_dict, xml_root):
         print('Failed to connect to NSX Manager. Verify reachability.')
         sys.exit()
 
-def nsx_hardware_binding(switch, switch_ports, vlan):
-    ''' Generate body and POST to NSX Manager if ports are present
-    
-    Args:
-        switch (str): The name of the switch to perform bindings for
-        switch_ports (dict): A dictionary containing configuration attributes
-        vlan (str): The vlan ID to bind the logical switch to
-    '''
-    # Loop to Generate Request Body from Dictionary for all switch bindings and POST
-    # So far as I can tell, these can only be done one switch per request and must be looped through
-    hw_bind_uri = 'virtualwires/' + ls_id + '/hardwaregateways'
-    for port, config in switch_ports.items():
-        # Check existing hardware bindings to see if there is a duplicate. Notify user but continue.
-        bind_check_dict = nsx_get('virtualwires/' + ls_id + '/hardwaregateways')
-        for index in range(len(bind_check_dict['list']['hardwareGatewayBinding'])):
-            if bind_check_dict['list']['hardwareGatewayBinding'][index]['switchName'] == switch:
-                if bind_check_dict['list']['hardwareGatewayBinding'][index]['portName'] == port:
-                    print(switch + ' ' + port + ' was already bound to ' + ls_name + '. Please verify config.')
-        if config['mode'] == 'access':
-            hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': '0', 'switchName': switch, 'portName': port}
-            hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
-            if hw_bind_response.status_code == 200:
-                print('NSX hardware binding complete for ' + switch + ' ' + port)
-            else:
-                print('Error binding NSX logical switch to ' + switch + ' ' + port)
-        else:
-            hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': vlan, 'switchName': switch, 'portName': port}
-            hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
-            if hw_bind_response.status_code == 200:
-                print('NSX hardware binding complete for ' + switch + ' ' + port)
-            else:
-                print('Error binding NSX logical switch to ' + switch + ' ' + port)
-
 def eapi_connect(switch_ip):
     ''' Connect to eAPI interface of Arista Switch
     
@@ -171,7 +138,6 @@ def switchport_config_update(switch, switch_ports):
         if eapi_switchport_config_check(switch, port) > 0:
             print(switch + ' ' + port + ' already has configuration present.')
             return 1
-        print(port)
         if port.startswith('Port'):
             print('Adding member interfaces to ' + switch + ' ' + port)
             # Pull out port-channel ID
@@ -257,6 +223,41 @@ def switchport_config_update(switch, switch_ports):
     switch_node.enable('write')
     return
 
+def nsx_hardware_binding(switch, switch_ports, vlan):
+    ''' Generate body and POST to NSX Manager if ports are present
+    
+    Args:
+        switch (str): The name of the switch to perform bindings for
+        switch_ports (dict): A dictionary containing configuration attributes
+        vlan (str): The vlan ID to bind the logical switch to
+    '''
+    # Loop to Generate Request Body from Dictionary for all switch bindings and POST
+    # So far as I can tell, these can only be done one switch per request and must be looped through.
+    hw_bind_uri = 'virtualwires/' + ls_id + '/hardwaregateways'
+    for port, config in switch_ports.items():
+        # Check existing hardware bindings to see if there is a duplicate. Notify user but continue.
+        bind_check_dict = nsx_get('virtualwires/' + ls_id + '/hardwaregateways')
+        if bool(bind_check_dict['list']) == True:
+            try:
+                for i in range(len(bind_check_dict['list']['hardwareGatewayBinding'])):
+                    if bind_check_dict['list']['hardwareGatewayBinding'][i]['switchName'] == switch:
+                        if bind_check_dict['list']['hardwareGatewayBinding'][i]['portName'] == port:
+                            print(switch + ' ' + port + ' was already bound to ' + ls_name + '. Please verify config.')
+            except KeyError:
+                if bind_check_dict['list']['hardwareGatewayBinding']['switchName'] == switch:
+                    if bind_check_dict['list']['hardwareGatewayBinding']['portName'] == port:
+                        print(switch + ' ' + port + ' was already bound to ' + ls_name + '. Please verify config.')
+        if config['mode'] == 'access':
+            port_vlan_id = '0'
+        else:
+            port_vlan_id = vlan
+        hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': port_vlan_id, 'switchName': switch, 'portName': port}
+        hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
+        if hw_bind_response.status_code == 200:
+            print('NSX hardware binding complete for ' + switch + ' ' + port)
+        else:
+            print('Error binding NSX logical switch to ' + switch + ' ' + port)
+
 # Pull in JSON file from command line argument
 parser = argparse.ArgumentParser(description='Configure Arista switchports via eAPI and bind to existing NSX logical switch')
 required_arg = parser.add_argument_group('Required Arguments')
@@ -277,8 +278,7 @@ zone_name = data['zone_name']
 data_center = list(data['data_center'].keys())[0]
 nsx_manager = data['data_center'][data_center]['nsx_manager']
 switches = data['data_center'][data_center]['switches']
-switch01_ports = data['switch01_ports']
-switch02_ports = data['switch02_ports']
+switch_ports = data['port_configs']
 ls_name = 'vls' + data_center + tenant_name + zone_name
 
 # GET Hardware Binding ID for CVX
@@ -295,22 +295,14 @@ for item in ls_dict['virtualWires']['dataPage']['virtualWire']:
         ls_vni_id = item['vdnId']
         vlan_id = ls_vni_id[0] + ls_vni_id[-2:]
 
-# Check if switch01 has ports that require configuration and call function to configure
-if bool(switch01_ports) == True:
-    switch01_push = switchport_config_update(switches[0], switch01_ports)
-    if switch01_push == 1:
-        print('Exiting script to prevent misconfiguration. Verify switch01_ports config data and rerun.')
-        sys.exit()
-# Check if switch02 has ports that require configuration and call function to configure
-if bool(switch02_ports) == True:
-    switch02_push = switchport_config_update(switches[1], switch02_ports)
-    if switch02_push == 1:
-        print('Exiting script to prevent misconfiguration. Verify switch02_ports config data and rerun.')
-        sys.exit()
+# Loop through ports that require configuration and call function to configure
+for index in range(len(switches)):
+    if bool(switch_ports[(switches[index])]) == True:
+        switch_push = switchport_config_update(switches[index], switch_ports[(switches[index])])
+        if switch_push == 1:
+            print('Exiting script to prevent misconfiguration. Verify ' + switches[index] + ' config data.')
+            sys.exit()
 
 # Check if switch01 has ports for binding, then call function to bind ports
-if bool(switch01_ports) == True:
-    nsx_hardware_binding(switches[0], switch01_ports, vlan_id)
-# Check if switch02 has ports for binding, then call function to bind ports
-if bool(switch02_ports) == True:
-    nsx_hardware_binding(switches[1], switch02_ports, vlan_id)
+for index in range(len(switches)):
+    nsx_hardware_binding(switches[index], switch_ports[(switches[index])], vlan_id)

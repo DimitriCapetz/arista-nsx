@@ -90,24 +90,26 @@ def nsx_hardware_binding(switch, switch_ports, vlan):
     for port, config in switch_ports.items():
         # Check existing hardware bindings to see if there is a duplicate. Notify user but continue.
         bind_check_dict = nsx_get('virtualwires/' + ls_id + '/hardwaregateways')
-        for index in range(len(bind_check_dict['list']['hardwareGatewayBinding'])):
-            if bind_check_dict['list']['hardwareGatewayBinding'][index]['switchName'] == switch:
-                if bind_check_dict['list']['hardwareGatewayBinding'][index]['portName'] == port:
-                    print(switch + ' ' + port + ' was already bound to ' + ls_name + '. Please verify config.')
+        if bool(bind_check_dict['list']) == True:
+            try:
+                for i in range(len(bind_check_dict['list']['hardwareGatewayBinding'])):
+                    if bind_check_dict['list']['hardwareGatewayBinding'][i]['switchName'] == switch:
+                        if bind_check_dict['list']['hardwareGatewayBinding'][i]['portName'] == port:
+                            print(switch + ' ' + port + ' was already bound to ' + ls_name + '. Please verify config.')
+            except KeyError:
+                if bind_check_dict['list']['hardwareGatewayBinding']['switchName'] == switch:
+                    if bind_check_dict['list']['hardwareGatewayBinding']['portName'] == port:
+                        print(switch + ' ' + port + ' was already bound to ' + ls_name + '. Please verify config.')
         if config['mode'] == 'access':
-            hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': '0', 'switchName': switch, 'portName': port}
-            hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
-            if hw_bind_response.status_code == 200:
-                print('NSX hardware binding complete for ' + switch + ' ' + port)
-            else:
-                print('Error binding NSX logical switch to ' + switch + ' ' + port)
+            port_vlan_id = '0'
         else:
-            hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': vlan, 'switchName': switch, 'portName': port}
-            hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
-            if hw_bind_response.status_code == 200:
-                print('NSX hardware binding complete for ' + switch + ' ' + port)
-            else:
-                print('Error binding NSX logical switch to ' + switch + ' ' + port)
+            port_vlan_id = vlan
+        hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': port_vlan_id, 'switchName': switch, 'portName': port}
+        hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
+        if hw_bind_response.status_code == 200:
+            print('NSX hardware binding complete for ' + switch + ' ' + port)
+        else:
+            print('Error binding NSX logical switch to ' + switch + ' ' + port)
 
 # Pull in JSON file from command line argument
 parser = argparse.ArgumentParser(description='Create NSX logical switch and bind to pre-configured switchports')
@@ -127,8 +129,7 @@ zone_name = data['zone_name']
 data_center = list(data['data_center'].keys())[0]
 nsx_manager = data['data_center'][data_center]['nsx_manager']
 switches = data['data_center'][data_center]['switches']
-switch01_ports = data['switch01_ports']
-switch02_ports = data['switch02_ports']
+switch_ports = data['port_configs']
 ls_name = 'vls' + data_center + tenant_name + zone_name
 
 # GET NSX Manager Transport Zone info to pull out Scope ID
@@ -165,5 +166,5 @@ ls_vni_id = ls_config_dict['virtualWire']['vdnId']
 vlan_id = ls_vni_id[0] + ls_vni_id[-2:]
 
 # Call function to add Hardware Bindings to new Logical Switch
-nsx_hardware_binding(switches[0], switch01_ports, vlan_id)
-nsx_hardware_binding(switches[1], switch02_ports, vlan_id)
+for index in range(len(switches)):
+    nsx_hardware_binding(switches[index], switch_ports[(switches[index])], vlan_id)

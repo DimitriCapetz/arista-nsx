@@ -1,52 +1,54 @@
 {
-   "tenant_name":"my_tenant",
-   "zone_name":"zone1",
-   "data_center":{
-      "dc01":{
-         "nsx_manager":"10.88.72.241",
-         "switches":[
-            "leaf01",
-            "leaf02"
-         ],
-         "cvps":[
-            "10.101.64.245",
-            "10.101.64.246",
-            "10.101.64.247"
-         ]
-      }
-   },
-   "switch01_ports":{
-      "Port-Channel10":{
-         "description":"Port-Channel Interface",
-         "mode":"trunk",
-         "speed":"10gfull",
-         "local_members": [
-           "Ethernet46",
-           "Ethernet35"
-          ],
-          "is_mlag": false
+  "tenant_name":"newtenant",
+  "zone_name":"zone1",
+  "data_center":{
+    "dc01":{
+      "nsx_manager":"10.77.64.241",
+      "switches":[
+        "leaf01",
+        "leaf02"
+      ],
+      "cvps":[
+        "10.77.64.245",
+        "10.77.64.245",
+        "10.77.64.245"
+      ]
+    }
+  },
+  "port_configs":{
+    "leaf01":{
+      "Port-channel10":{
+        "description":"Port-Channel Interface",
+        "mode":"trunk",
+        "speed":"1000full",
+        "local_members":[
+          "Ethernet46",
+          "Ethernet35"
+        ],
+        "is_mlag":false
       },
-      "Ethernet29":{
-         "description":"Firewall Uplink",
-         "mode":"trunk",
-         "speed":"10gfull"
-      },
-      "Ethernet30":{
-         "description":"Bare Metal Service",
-         "mode":"access",
-         "speed":"1000full"
+      "Ethernet28":{
+        "description":"Firewall Uplink",
+        "mode":"trunk",
+        "speed":"10gfull",
       }
-   },
-   "switch02_ports":{
-      "Ethernet29":{
-         "description":"Load Balance Uplink",
-         "mode":"trunk",
-         "speed":"10gfull"
+    },
+    "leaf02":{
+      "Ethernet27":{
+        "description":"Server Interface",
+        "mode":"access",
+        "speed":"1000full",
       },
-      "Ethernet30":{
-         "description":"NAS Device",
-         "mode":"trunk native",
-         "speed":"1000full"
+      "Port-channel101":{
+        "description":"Port-Channel Interface",
+        "mode":"trunk native",
+        "speed":"10gfull",
+        "local_members":[
+          "Ethernet47",
+          "Ethernet36"
+        ],
+        "is_mlag":false
       }
-   }
+    }
+  }
 }

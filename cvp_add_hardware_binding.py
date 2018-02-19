@@ -240,24 +240,26 @@ def nsx_hardware_binding(switch, switch_ports, vlan):
     for port, config in switch_ports.items():
         # Check existing hardware bindings to see if there is a duplicate. Notify user but continue.
         bind_check_dict = nsx_get('virtualwires/' + ls_id + '/hardwaregateways')
-        for index in range(len(bind_check_dict['list']['hardwareGatewayBinding'])):
-            if bind_check_dict['list']['hardwareGatewayBinding'][index]['switchName'] == switch:
-                if bind_check_dict['list']['hardwareGatewayBinding'][index]['portName'] == port:
-                    print(switch + ' ' + port + ' was already bound to ' + ls_name + '. Please verify config.')
+        if bool(bind_check_dict['list']) == True:
+            try:
+                for i in range(len(bind_check_dict['list']['hardwareGatewayBinding'])):
+                    if bind_check_dict['list']['hardwareGatewayBinding'][i]['switchName'] == switch:
+                        if bind_check_dict['list']['hardwareGatewayBinding'][i]['portName'] == port:
+                            print(switch + ' ' + port + ' was already bound to ' + ls_name + '. Please verify config.')
+            except KeyError:
+                if bind_check_dict['list']['hardwareGatewayBinding']['switchName'] == switch:
+                    if bind_check_dict['list']['hardwareGatewayBinding']['portName'] == port:
+                        print(switch + ' ' + port + ' was already bound to ' + ls_name + '. Please verify config.')
         if config['mode'] == 'access':
-            hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': '0', 'switchName': switch, 'portName': port}
-            hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
-            if hw_bind_response.status_code == 200:
-                print('NSX hardware binding complete for ' + switch + ' ' + port)
-            else:
-                print('Error binding NSX logical switch to ' + switch + ' ' + port)
+            port_vlan_id = '0'
         else:
-            hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': vlan, 'switchName': switch, 'portName': port}
-            hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
-            if hw_bind_response.status_code == 200:
-                print('NSX hardware binding complete for ' + switch + ' ' + port)
-            else:
-                print('Error binding NSX logical switch to ' + switch + ' ' + port)
+            port_vlan_id = vlan
+        hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': port_vlan_id, 'switchName': switch, 'portName': port}
+        hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
+        if hw_bind_response.status_code == 200:
+            print('NSX hardware binding complete for ' + switch + ' ' + port)
+        else:
+            print('Error binding NSX logical switch to ' + switch + ' ' + port)
 
 # Pull in JSON file from command line argument
 parser = argparse.ArgumentParser(description='Configure Arista switchports via CVP and bind to existing NSX logical switch')
@@ -280,8 +282,7 @@ data_center = list(data['data_center'].keys())[0]
 nsx_manager = data['data_center'][data_center]['nsx_manager']
 switches = data['data_center'][data_center]['switches']
 cvps = data['data_center'][data_center]['cvps']
-switch01_ports = data['switch01_ports']
-switch02_ports = data['switch02_ports']
+switch_ports = data['port_configs']
 ls_name = 'vls' + data_center + tenant_name + zone_name
 
 # GET Hardware Binding ID for CVX
@@ -302,18 +303,13 @@ for item in ls_dict['virtualWires']['dataPage']['virtualWire']:
 cvp = CvpClient(syslog=True, filename='cvprac_log')
 cvp.connect(cvps, cvp_username, cvp_password)
 
-# Check if switch01 has ports, then generate config and apply via CVP Configlet for each switch.
-if bool(switch01_ports) == True:
-    switch01_push = switch_configlet_update(switches[0], switch01_ports)
-    if switch01_push == 1:
-        print('Exiting script to prevent misconfiguration. Verify switch01_ports config data.')
-        sys.exit()
-# Check if switch02 has ports, then generate config and apply via CVP Configlet for each switch.
-if bool(switch02_ports) == True:
-    switch02_push = switch_configlet_update(switches[1], switch02_ports)
-    if switch02_push == 1:
-        print('Exiting script to prevent misconfiguration. Verify switch02_ports config data.')
-        sys.exit()
+# Loop through to generate config and apply via CVP Configlet for each switch.
+for index in range(len(switches)):
+    if bool(switch_ports[(switches[index])]) == True:
+        switch_push = switch_configlet_update(switches[index], switch_ports[(switches[index])])
+        if switch_push == 1:
+            print('Exiting script to prevent misconfiguration. Verify ' + switches[index] + ' config data.')
+            sys.exit()
 
 # Execute pending tasks in CVP to push updated configlets to switches
 # Add wait time before to ensure configlet changes are registered as tasks
@@ -322,8 +318,5 @@ time.sleep(5)
 execute_pending_tasks()
 
 # Check if switch01 has ports for binding, then call function to bind ports
-if bool(switch01_ports) == True:
-    nsx_hardware_binding(switches[0], switch01_ports, vlan_id)
-# Check if switch02 has ports for binding, then call function to bind ports
-if bool(switch02_ports) == True:
-    nsx_hardware_binding(switches[1], switch02_ports, vlan_id)
+for index in range(len(switches)):
+    nsx_hardware_binding(switches[index], switch_ports[(switches[index])], vlan_id)
