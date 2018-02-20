@@ -14,6 +14,7 @@ Created by Dimitri Capetz - dcapetz@arista.com
 
 # Import requests for API Calls to NSX Manager
 # Import xmltodict and dicttoxml for working with XML
+# Import pyEAPI for retrieval of switch attributes
 # Import getpass for masked password prompt
 # Import argparse for pulling in file input via command line
 # Import json for working with json objects
@@ -21,6 +22,7 @@ Created by Dimitri Capetz - dcapetz@arista.com
 import requests
 import xmltodict
 from dicttoxml import dicttoxml
+import pyeapi
 import getpass
 import argparse
 import json
@@ -76,6 +78,58 @@ def nsx_post(uri, body_dict, xml_root):
         print('Failed to connect to NSX Manager. Verify reachability.')
         sys.exit()
 
+def eapi_connect(switch):
+    ''' Connect to eAPI interface of Arista Switch
+    
+    Args:
+        switch (str): The IP address or FQDN of the Arista switch
+    
+    Returns:
+        switch_node (class): The connected node of the function call that can be used for show or config commands.
+    '''
+    switch_conn = pyeapi.client.connect(transport='https', host=switch, username=switch_username, password=switch_password)
+    switch_node = pyeapi.client.Node(switch_conn)
+    return switch_node
+
+def eapi_mlag_config_check(switch):
+    ''' Connect and check mlag domain ID for use with NSX bindings
+    
+    Args:
+        switch (str): The IP address or FQDN of the Arista switch
+    
+    Returns:
+        mlag_domain (str): The mlag domain ID of the switch
+    '''
+    switch_node = eapi_connect(switch)
+    # Check mlag configuration and parse out mlag domain ID.
+    show_mlag_output = switch_node.enable('show mlag')
+    mlag_domain = show_mlag_output[0]['result']['domainId']
+    return mlag_domain
+
+def nsx_binding_check(switch, port):
+    ''' Checks existing NSX hardware bindings for any conflict
+    
+    Args:
+        switch (str): The name of the Arista switch or mlag_domain
+        port (str): The name of the port to check for
+    '''
+    bind_check_dict = nsx_get('virtualwires/' + ls_id + '/hardwaregateways')
+    if bool(bind_check_dict['list']) == True:
+        try:
+            for i in range(len(bind_check_dict['list']['hardwareGatewayBinding'])):
+                if bind_check_dict['list']['hardwareGatewayBinding'][i]['switchName'] == switch:
+                    if bind_check_dict['list']['hardwareGatewayBinding'][i]['portName'] == port:
+                        print(switch + ' ' + port + ' was already bound to ' + ls_name)
+                        print('This is expected if the port is the second Mlag port in a switch pair')
+                        print('If it is not, please verify input file and switch config')
+        except KeyError:
+            if bind_check_dict['list']['hardwareGatewayBinding']['switchName'] == switch:
+                if bind_check_dict['list']['hardwareGatewayBinding']['portName'] == port:
+                    print(switch + ' ' + port + ' was already bound to ' + ls_name)
+                    print('This is expected if the port is the second Mlag port in a switch pair')
+                    print('If it is not, please verify input file and switch config')
+    
+
 def nsx_hardware_binding(switch, switch_ports, vlan):
     ''' Generate body and POST to NSX Manager if ports are present
     
@@ -88,24 +142,35 @@ def nsx_hardware_binding(switch, switch_ports, vlan):
     # So far as I can tell, these can only be done one switch per request and must be looped through.
     hw_bind_uri = 'virtualwires/' + ls_id + '/hardwaregateways'
     for port, config in switch_ports.items():
+        # Check if port to bind is an MLAG interface.  If yes, rewrite switch and port variables to match what NSX expects.
+        if port.startswith('Port'):
+            if config['is_mlag'] == True:
+                mlag_port = 'Mlag' + (port.split('l'))[1]
+                mlag_switch = 'mlag-' + eapi_mlag_config_check(switch)
         # Check existing hardware bindings to see if there is a duplicate. Notify user but continue.
-        bind_check_dict = nsx_get('virtualwires/' + ls_id + '/hardwaregateways')
-        if bool(bind_check_dict['list']) == True:
-            try:
-                for i in range(len(bind_check_dict['list']['hardwareGatewayBinding'])):
-                    if bind_check_dict['list']['hardwareGatewayBinding'][i]['switchName'] == switch:
-                        if bind_check_dict['list']['hardwareGatewayBinding'][i]['portName'] == port:
-                            print(switch + ' ' + port + ' was already bound to ' + ls_name + '. Please verify config.')
-            except KeyError:
-                if bind_check_dict['list']['hardwareGatewayBinding']['switchName'] == switch:
-                    if bind_check_dict['list']['hardwareGatewayBinding']['portName'] == port:
-                        print(switch + ' ' + port + ' was already bound to ' + ls_name + '. Please verify config.')
+        if port.startswith('Port'):
+            if config['is_mlag'] == True:
+                nsx_binding_check(mlag_switch, mlag_port)
+            else:
+                nsx_binding_check(switch, port)
+        else:
+            nsx_binding_check(switch, port)
+        # Set vlan ID for binding and apply
         if config['mode'] == 'access':
             port_vlan_id = '0'
         else:
             port_vlan_id = vlan
-        hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': port_vlan_id, 'switchName': switch, 'portName': port}
-        hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
+        # Perform harware bindings. Check if mlag is present to ensure names are correct when sent to NSX.
+        if port.startswith('Port'):
+            if config['is_mlag'] == True:
+                hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': port_vlan_id, 'switchName': mlag_switch, 'portName': mlag_port}
+                hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
+            else:
+                hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': port_vlan_id, 'switchName': switch, 'portName': port}
+                hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
+        else:
+            hw_bind_dict = {'hardwareGatewayId': hw_id, 'vlan': port_vlan_id, 'switchName': switch, 'portName': port}
+            hw_bind_response = nsx_post(hw_bind_uri, hw_bind_dict, 'hardwareGatewayBinding')
         if hw_bind_response.status_code == 200:
             print('NSX hardware binding complete for ' + switch + ' ' + port)
         else:
@@ -131,6 +196,20 @@ nsx_manager = data['data_center'][data_center]['nsx_manager']
 switches = data['data_center'][data_center]['switches']
 switch_ports = data['port_configs']
 ls_name = 'vls' + data_center + tenant_name + zone_name
+
+# Check if any ports designated for binding are Mlag interfaces.
+# If so, have user specify login info for switch to pull Mlag Domain ID.
+for index in range(len(switches)):
+    switch_ports_mlag_check = switch_ports[(switches[index])]
+    for port, config in switch_ports_mlag_check.items():
+        if port.startswith('Port'):
+            if config['is_mlag'] == True:
+                try:
+                    switch_username
+                except NameError:
+                    print('Mlag port identified for binding. Please enter switch login info for Mlag ID retrieval')
+                    switch_username = input('Switch Username: ')
+                    switch_password = getpass.getpass(prompt='Switch Password: ')
 
 # GET NSX Manager Transport Zone info to pull out Scope ID
 tz_dict = nsx_get('scopes')

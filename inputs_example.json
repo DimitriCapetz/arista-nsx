@@ -22,30 +22,38 @@
         "mode":"trunk",
         "speed":"1000full",
         "local_members":[
-          "Ethernet46",
           "Ethernet35"
         ],
-        "is_mlag":false
+        "is_mlag":true
       },
       "Ethernet28":{
         "description":"Firewall Uplink",
         "mode":"trunk",
-        "speed":"10gfull",
+        "speed":"10gfull"
       }
     },
     "leaf02":{
       "Ethernet27":{
         "description":"Server Interface",
         "mode":"access",
+        "speed":"1000full"
+      },
+      "Port-channel10":{
+        "description":"Port-Channel Interface",
+        "mode":"trunk",
         "speed":"1000full",
+        "local_members":[
+          "Ethernet35"
+        ],
+        "is_mlag":true
       },
       "Port-channel101":{
         "description":"Port-Channel Interface",
         "mode":"trunk native",
         "speed":"10gfull",
         "local_members":[
-          "Ethernet47",
-          "Ethernet36"
+          "Ethernet10",
+          "Ethernet11"
         ],
         "is_mlag":false
       }
