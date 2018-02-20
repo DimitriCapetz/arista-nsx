@@ -24,7 +24,7 @@ The format of the input file must be based on the template file provided.  A few
 - The name of the switch must match exactly to its corresponding "port_configs" entry in the file.
 - The order of switches and port entries doesn't matter.
 - All interface names must be properly capitalized and fully spelled out.
-- Port-channel interfaces require the additional fields for "local members" and "is_mlag" (Note: Today, Mlag interfaces are not supported.  Coming soon!)
+- Port-channel interfaces require the additional fields for "local members" and "is_mlag"
 
 If you edit the file and are having issues getting the script to function, verify that the input is a valid JSON file using an online tool like...
 
@@ -46,9 +46,7 @@ These scripts are fairly generalized so should be backwards and forwards compati
 - Arista EOS version 4.20.2.1F
 - Arista CVP version 2017.2.3
 
-The scripts should work using DNS names or IPs in the input JSON file EXCEPT for the eapi script.  This one requires the use of DNS for the switches today.  If that is an issue, it can be worked around in a number of ways.  Contact me if you help in that area.
-
-Please also note that today, this script will only work for two switches at a time.  It also does not support hardware binding to MLAG ports today.  This will be added in the future.
+The scripts are built assuming you have DNS functioning for each switch in your environment  If that is an issue, it can be worked around in a number of ways.  Contact me if you help in that area and you want to use IP addesses for the switches.
 
 It should also be noted that I have disabled SSL certificate checking in the scripts.  If you have signed certificates in your environment, you can remove the sections detailed in the script comments to re-enable it.
 
